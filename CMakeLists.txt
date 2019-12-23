@@ -13,34 +13,34 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   actionlib
   actionlib_msgs
+  hardware_interface
+  controller_manager
   serial
-  sensor_msgs
-  control_msgs
   message_generation
 )
 
 ## System dependencies are found with CMake's conventions
-find_package(Boost REQUIRED)
+find_package(Boost REQUIRED COMPONENTS)
 
 ################################################
 ## Declare ROS messages, services and actions ##
 ################################################
-
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   DIRECTORY srv
-#   FILES GripperState.srv
-# )
-
+add_service_files(
+  DIRECTORY srv
+  FILES hand_state.srv
+)
 ## Generate actions in the 'action' folder
-# add_action_files(
-#   DIRECTORY action
-#   FILES ActuateHand.action
-# )
-
-# generate_messages(
-#   DEPENDENCIES std_msgs actionlib_msgs
-# )
+add_action_files(
+  DIRECTORY action
+  FILES ActuateHand.action
+)
+## Generate added messages and services with any dependencies listed here
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+  actionlib_msgs
+)
 
 ###################################
 ## catkin specific configuration ##
@@ -52,17 +52,25 @@ find_package(Boost REQUIRED)
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-  INCLUDE_DIRS include
-# LIBRARIES
-  CATKIN_DEPENDS roscpp rospy std_msgs actionlib actionlib_msgs serial
-  sensor_msgs control_msgs message_runtime
-  DEPENDS Boost
+  INCLUDE_DIRS
+    include
+  CATKIN_DEPENDS
+    roscpp
+    rospy
+    std_msgs
+    actionlib
+    actionlib_msgs
+    hardware_interface
+    controller_manager
+    serial
+    message_runtime
+  DEPENDS
+    Boost
 )
 
 ###########
 ## Build ##
 ###########
-
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
@@ -77,56 +85,11 @@ include_directories(
 #include/dh_hand_driver/hand_driver.cpp
 #)
 
-## Declare a C++ executable
-## With catkin_make all packages are built within a single CMake context
-## The recommended prefix ensures that target names across packages don't collide
-add_executable(dh_controller
-src/gripper_node.cpp src/gripper_controller.cpp src/gripper_driver.cpp src/DH_datastream.cpp)
+add_executable(dh_hardware_interface src/dh_hardware_interface.cpp)
 
-## Add cmake target dependencies of the executable
-## same as for the library above
-#add_dependencies(gripper_controller dh_hand_driver_generate_messages_cpp
-#${dh_hand_driver_EXPORTED_TARGETS})
+target_link_libraries(dh_hardware_interface ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
-## Specify libraries to link a library or executable target against
-target_link_libraries(dh_controller ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
-#############
-## Install ##
-#############
-
-# all install targets should use catkin DESTINATION variables
-# See http://ros.org/doc/api/catkin/html/adv_user_guide/variables.html
-
-## Mark executable scripts (Python etc.) for installation
-## in contrast to setup.py, you can choose the destination
-# install(PROGRAMS
-#   scripts/my_python_script
-#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
-
-## Mark executables for installation
-install(
-  TARGETS dh_controller
-  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
-
-## Mark libraries for installation
-## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_libraries.html
-# install(TARGETS ${PROJECT_NAME}
-#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
-# )
-
-## Mark cpp header files for installation
-install(
-  DIRECTORY include/${PROJECT_NAME}/
-  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-  FILES_MATCHING PATTERN "*.h"
-)
-
-## Mark other files for installation (e.g. launch and bag files, etc.)
-install(DIRECTORY config DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
-install(DIRECTORY launch DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
-install(FILES rosconsole.conf DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+add_executable(hand_controller_client
+src/test_client.cpp)
+target_link_libraries(hand_controller_client  ${catkin_LIBRARIES})

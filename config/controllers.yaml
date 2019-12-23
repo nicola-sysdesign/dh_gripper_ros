@@ -1,0 +1,13 @@
+#################
+## Controllers ##
+#################
+AG95:
+  controller:
+    state:
+      type: joint_state_controller/JointStateController
+      publish_rate: 50
+    position:
+      gripper_joint:
+        type: position_controllers/GripperActionController
+        joint: 'AG95_finger_joint'
+        pid: { p: 1.0, i: 0.0, d: 0.0, i_clamp: 0.0 }

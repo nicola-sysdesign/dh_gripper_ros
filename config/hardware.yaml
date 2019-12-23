@@ -1,0 +1,8 @@
+########################
+## Hardware Interface ##
+########################
+AG95:
+  hardware_interface:
+    loop_hz: 50
+    joints:
+      - 'AG95_finger_joint'

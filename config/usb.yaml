@@ -1,0 +1,8 @@
+#########
+## USB ##
+#########
+
+port: '/dev/tty0'
+  #
+timeout: 1000
+  # timeout in milliseconds
