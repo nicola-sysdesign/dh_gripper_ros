@@ -4,10 +4,9 @@
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "hand_controller");
-  ros::NodeHandle n;
-  HandController controller(n,"actuate_hand");
+  ros::NodeHandle node("~");
+  HandController controller(node, "gripper_command");
   ros::spin();
 
   return 0;
 }
-

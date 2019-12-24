@@ -27,96 +27,94 @@ protected:
 
     /// true if current target has been reached
     bool target_reached_1;
-  
+
      /// save the Data Stream
     DH_Robotics::DH_DataStream mDatastream;
 
 public:
     DH_Hand_Base();
     ~DH_Hand_Base();
-    
+
     /**
      * @brief Return  motot 1 current position
-     * 
+     *
      */
     double position1(){return position_1;}
 
-    /** 
+    /**
      * @brief Return Velocity.
-     * 
+     *
      */
     double velocity(){return velocity_;}
 
     /**
      * @brief this function is reserve , do not use it
-     * 
+     *
      */
     void reset();
 
     /**
      * @brief this function is reserve , do not use it
-     * 
+     *
      */
     void setMotorVelocity(double p) {velocity_ = (int)p;}
 
     /**
      * @brief Get the vector Steam
-     * 
-     * @return std::vector<uint8_t> 
+     *
+     * @return std::vector<uint8_t>
      */
     std::vector<uint8_t> getStream();
 
     /**
      * @brief  Base Function , all setting functions call it
-     * 
+     *
      * @param Reg       RegisterType
-     * @param data      
+     * @param data
      * @param Write     OPTION
      * @param submode   sub_RegisterType, such SlowModeType
      */
-    void SetOpration(int Reg=DH_Robotics::R_Initialization,int data=0,int Write = DH_Robotics::Write,int submode=0x02);
-    
+    void SetOperation(int Reg=DH_Robotics::R_Initialization, int data=0, int Write = DH_Robotics::Write, int submode=0x02);
+
     /**
-     * @brief set the Initialize 
-     * 
+     * @brief set the Initialize
+     *
      */
     void setInitialize();
 
     /**
     * @brief Set the Motor 1 Position
-    * 
-    * @param target_position 
+    *
+    * @param target_position
     */
     void setMotorPosition(int MotorID , const int &target_position);
 
     /**
      * @brief Set the Motor Force
-     * 
-     * @param target_force 
+     *
+     * @param target_force
      */
     void setMotorForce(const int &target_force);
 
     /**
-     * @brief Get the Motor Force 
-     * 
+     * @brief Get the Motor Force
+     *
      */
     void getMotorForce();
 
     /**
      * @brief Get the Motor Position
-     * 
-     * @param MotorID 
+     *
+     * @param MotorID
      */
     void getMotorPosition(const int &MotorID);
 
     /**
      * @brief Get the Feedback
-     * 
-     * @param MotorID 
+     *
+     * @param MotorID
      */
     void getFeedback(const int &MotorID);
 };
 
 #endif
-
-

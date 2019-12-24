@@ -5,16 +5,20 @@ Email:    jie.sun@dh-robotics.com
 Date:     2019 July 1
 
 Version 2.0
-Copyright @ DH-Robotics Ltd.  
+Copyright @ DH-Robotics Ltd.
 **/
 
 #include <dh_hand_driver/hand_controller.h>
-HandController::HandController(ros::NodeHandle n, const std::string &name)
-    : as_(n, name, boost::bind(&HandController::actuateHandCB, this, _1), false)
-{
-  n.param<std::string>("Connect_port", hand_port_name_, "/dev/DH_hand");
-  n.param<std::string>("Hand_Model", Hand_Model_, "AG-2E");
-  n.param<double>("WaitDataTime", WaitDataTime_, 0.5);
+
+
+HandController::HandController(ros::NodeHandle node, const std::string &name)
+    : as_(node, name, boost::bind(&HandController::actuateHandCB, this, _1), false) {
+
+  // Parameters
+  node.param<std::string>("connect_port", hand_port_name_, "/dev/DH_hand");
+  node.param<std::string>("hand_model", Hand_Model_, "AG-2E");
+  node.param<double>("data_timeout", WaitDataTime_, 0.5);
+
   ROS_INFO("Hand_model : %s", Hand_Model_.c_str());
   ROS_INFO("Connect_port: %s", hand_port_name_.c_str());
 
@@ -37,9 +41,17 @@ HandController::HandController(ros::NodeHandle n, const std::string &name)
     ROS_INFO("Initialized");
   }
 
-  ros::ServiceServer service = n.advertiseService("hand_joint_state", &HandController::jointValueCB, this);
+  joint_pos.resize(1, 0.0);
+  joint_eff.resize(1, 0.0);
+
+  stalled.resize(1, false);
+  reached_goal.resize(1, false);
+
+  ros::ServiceServer service = node.advertiseService("hand_joint_state", &HandController::jointValueCB, this);
   as_.start();
+
   ROS_INFO("server started");
+
   ros::spin();
 }
 
@@ -101,36 +113,64 @@ bool HandController::jointValueCB(dh_hand_driver::hand_state::Request &req,
   return ret;
 }
 
-void HandController::actuateHandCB(const dh_hand_driver::ActuateHandGoalConstPtr &goal)
-{
+
+void HandController::actuateHandCB(const control_msgs::GripperCommandGoalConstPtr &goal) {
   ROS_INFO("Start to move the DH %s Hand", Hand_Model_.c_str());
 
-  dh_hand_driver::ActuateHandFeedback feedback;
-  dh_hand_driver::ActuateHandResult result;
+  int motor_id = 1;
+
+  control_msgs::GripperCommandFeedback feedback;
+  control_msgs::GripperCommandResult result;
   bool succeeded = false;
   bool bFeedback = false;
 
   // move Motor
-  if (Hand_Model_ == "AG-2E" && goal->MotorID == 2)
-  {
-    ROS_ERROR("invalid AG-2E command");
+  // if (Hand_Model_ == "AG-2E" && goal->MotorID == 2)
+  // {
+  //   ROS_ERROR("invalid AG-2E command");
+  //   as_.setAborted(result);
+  //   return;
+  // }
+
+
+  if (goal->command.position < 0 || goal->command.position > 100) {
+    ROS_ERROR("command position: %.1f, out of range.", goal->command.position);
     as_.setAborted(result);
     return;
   }
 
-  if (goal->force >= 20 && goal->force <= 100 && goal->position >= 0 && goal->position <= 100)
-  {
-    setGrippingForce(goal->force);
-    succeeded = moveHand(goal->MotorID, goal->position, bFeedback);
-    feedback.position_reached = bFeedback;
-    as_.publishFeedback(feedback);
-    ros::Duration(WaitDataTime_).sleep();
-    result.opration_done = succeeded;
+  if (goal->command.max_effort < 15 || goal->command.max_effort > 100) {
+    ROS_ERROR("command max_effort: %.1f, out of range.", goal->command.max_effort);
+    as_.setAborted(result);
+    return;
   }
-  else
-  {
-    ROS_ERROR("received invalid action command");
-  }
+
+
+  setGrippingForce(goal->command.max_effort);
+  succeeded = moveHand(motor_id, goal->command.position, bFeedback);
+
+  int position;
+  int effort;
+
+  getGrippingPosition(motor_id, position);
+  getGrippingForce(effort);
+
+  feedback.position = position;
+  feedback.effort = effort;
+  feedback.stalled = !bFeedback;
+  feedback.reached_goal = bFeedback;
+  as_.publishFeedback(feedback);
+
+  ros::Duration(WaitDataTime_).sleep();
+
+  getGrippingPosition(motor_id, position);
+  getGrippingForce(effort);
+
+  result.position = position;
+  result.effort = effort;
+  result.stalled = !bFeedback;
+  result.reached_goal = bFeedback;
+
   if (succeeded)
     as_.setSucceeded(result);
   else
@@ -141,10 +181,9 @@ void HandController::actuateHandCB(const dh_hand_driver::ActuateHandGoalConstPtr
  * To build the communication with the servo motors
  *
 * */
-bool HandController::build_conn()
-{
-
+bool HandController::build_conn() {
   bool hand_connected = false;
+
   if (connect_mode == 1)
   {
     try
@@ -207,6 +246,7 @@ bool HandController::build_conn()
   return hand_connected;
 }
 
+
 void HandController::closeDevice()
 {
   // stop communication
@@ -216,122 +256,155 @@ void HandController::closeDevice()
     close(sockfd);
 }
 
-bool HandController::initHand()
-{
-  auto ret = false;
-  auto iter = 0;
-  do
-  {
-    // gen initialize commond
-    Hand.setInitialize();
-    //write
-    if (Writedata(Hand.getStream()))
-    {
-      // ensure set finished
-      if (ensure_set_command(Hand.getStream()))
-      {
-        ROS_INFO("init ensure_set_command");
-        //wait initialize finish
-        Hand.setInitialize();
-        auto wait_i = 0;
-        do
-        {
-          ros::Duration(0.5).sleep();
-          if (ensure_get_command(Hand.getStream()))
-          {
-            if (readtempdata.data[0] == 0x01)
-              ret = true;
-            break;
-          }
-        } while (wait_i++ < 20);
 
-        if (ret)
-          break;
-      }
-      else
-      {
-        ROS_WARN("setInitialize wait response timeout");
-      }
-    }
-    else
-    {
-      ROS_WARN("setInitialize write data error");
-    }
-  } while (iter++ < 2);
-  return ret;
-}
-
-bool HandController::moveHand(int MotorID, int target_position, bool &feedback)
-{
+bool HandController::initHand() {
   auto ret = false;
   auto iter = 0;
   auto wait_iter = 0;
-  do
-  {
-    //gen position command frame
-    Hand.setMotorPosition(MotorID, target_position);
-    //write
-    if (Writedata(Hand.getStream()))
-    {
-      // ensure set finished
-      if (ensure_set_command(Hand.getStream()))
-      {
-        //gen get feedback frame
-        Hand.getFeedback(MotorID);
-        //write
-        do
-        {
-          if (Writedata(Hand.getStream()))
-          {
-            //wait and ensure finished motion
-            if (ensure_run_end(Hand.getStream()))
-            {
-              if (readtempdata.data[0] == DH_Robotics::FeedbackType::ARRIVED)
-              {
-                feedback = true;
-                ret = true;
-                break;
-              }
-              else if (readtempdata.data[0] == DH_Robotics::FeedbackType::CATCHED)
-              {
-                feedback = false;
-                ret = true;
-                break;
-              }
-            }
-            else
-            {
-              ROS_WARN("getFeedback ensure_run_end wait response timeout");
-            }
-          }
-          else
-          {
-            ROS_WARN("getFeedback wait response timeout");
-          }
-        } while (wait_iter++ < 100);
-        // ROS_WARN("wait_iter %d", wait_iter);
-      }
-      else
-      {
-        ROS_WARN("setMotorPosition wait response timeout");
-      }
+  Hand.setInitialize();
+  do {
+
+    if (!Writedata(Hand.getStream())) {
+      ROS_WARN("setInitialize write data error");
+      continue;
     }
-    else
-    {
-      ROS_WARN("setMotorPosition write data error");
+
+    if (!ensure_set_command(Hand.getStream())) {
+      ROS_WARN("setInitialize wait response timeout");
+      continue;
     }
-    if (ret)
-      break;
-  } while (iter++ < 3);
+
+    ROS_INFO("init ensure_set_command");
+
+    Hand.setInitialize();
+    do {
+      ros::Duration(0.5).sleep();
+
+      if (!ensure_get_command(Hand.getStream())) {
+        continue;
+      }
+
+      if (readtempdata.data[0] == 0x01) {
+        ret = true;
+      }
+
+    } while (ret == false && wait_iter++ < 20);
+
+  } while (ret == false && iter++ < 2);
+
   return ret;
 }
 
-bool HandController::setGrippingForce(int gripping_force)
-{
+
+bool HandController::moveHand(int motor_id, int target_position, bool &feedback) {
   auto ret = false;
   auto iter = 0;
-  do
-  {
+  auto wait_iter = 0;
+  do {
+    Hand.setMotorPosition(motor_id, target_position);
+
+    if (!Writedata(Hand.getStream())) {
+      ROS_WARN("setMotorPosition write data error");
+      continue;
+    }
+
+    if (!ensure_set_command(Hand.getStream())) {
+      ROS_WARN("setMotorPosition wait response timeout");
+      continue;
+    }
+
+    Hand.getFeedback(motor_id);
+    do {
+
+      if (!Writedata(Hand.getStream())) {
+        ROS_WARN("getFeedback wait response timeout");
+        continue;
+      }
+
+      if (!ensure_run_end(Hand.getStream())) {
+        ROS_WARN("getFeedback ensure_run_end wait response timeout");
+        continue;
+      }
+
+      if (readtempdata.data[0] == DH_Robotics::FeedbackType::ARRIVED)
+      {
+        feedback = true;
+        ret = true;
+      }
+      else if (readtempdata.data[0] == DH_Robotics::FeedbackType::CATCHED)
+      {
+        feedback = false;
+        ret = true;
+      }
+
+    } while (ret == false && wait_iter++ < 100);
+
+  } while (ret == false && iter++ < 3);
+
+  return ret;
+}
+
+
+bool HandController::getHandFeedback(int motor_id, bool &feedback) {
+  auto ret = false;
+  auto iter = 0;
+  Hand.getFeedback(motor_id);
+  do {
+
+    if (!Writedata(Hand.getStream())) {
+      ROS_WARN("getFeedback wait response timeout");
+      continue;
+    }
+
+    if (!ensure_run_end(Hand.getStream())) {
+      ROS_WARN("getFeedback ensure_run_end wait response timeout");
+      continue;
+    }
+
+    if (readtempdata.data[0] == DH_Robotics::FeedbackType::ARRIVED)
+    {
+      feedback = true;
+      ret = true;
+    }
+    else if (readtempdata.data[0] == DH_Robotics::FeedbackType::CATCHED)
+    {
+      feedback = false;
+      ret = true;
+    }
+
+  } while (ret == false && iter++ < 100);
+
+  return ret;
+}
+
+
+bool HandController::getGrippingPosition(int motor_id, int &position) {
+  auto ret = false;
+  auto iter = 0;
+  Hand.getMotorPosition(motor_id);
+  do {
+
+    if (!Writedata(Hand.getStream())) {
+      ROS_WARN("getMotorForce write data error");
+      continue;
+    }
+
+    if (!ensure_get_command(Hand.getStream())) {
+      ROS_WARN("getMotorForce wait timeout");
+      continue;
+    }
+
+    position = readtempdata.data[0];
+    ret = true;
+  } while (ret == false && iter++ < 3);
+
+  return ret;
+}
+
+bool HandController::setGrippingForce(int gripping_force) {
+  auto ret = false;
+  auto iter = 0;
+  do {
     Hand.setMotorForce(gripping_force);
     if (Writedata(Hand.getStream()))
     {
@@ -350,8 +423,33 @@ bool HandController::setGrippingForce(int gripping_force)
       ROS_WARN("setMotorForce write data error");
     }
   } while (iter++ < 3);
+
   return ret;
 }
+
+bool HandController::getGrippingForce(int &gripping_force) {
+  auto ret = false;
+  auto iter = 0;
+  Hand.getMotorForce();
+  do {
+
+    if (!Writedata(Hand.getStream())) {
+      ROS_WARN("getMotorForce write data error");
+      continue;
+    }
+
+    if (!ensure_get_command(Hand.getStream())) {
+      ROS_WARN("getMotorForce wait timeout");
+      continue;
+    }
+
+    gripping_force = readtempdata.data[0];
+    ret = true;
+  } while (ret == false && iter++ < 3);
+
+  return ret;
+}
+
 
 bool HandController::Writedata(std::vector<uint8_t> data)
 {
