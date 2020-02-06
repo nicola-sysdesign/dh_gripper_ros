@@ -8,19 +8,21 @@ Version 2.0
 Copyright @ DH-Robotics Ltd.
 **/
 
-#include <dh_hand_driver/hand_controller.h>
+#include "dh_gripper/gripper_controller.h"
 
 
-HandController::HandController(ros::NodeHandle node, const std::string &name)
-    : as_(node, name, boost::bind(&HandController::actuateHandCB, this, _1), false) {
-
+dh::GripperController::GripperController(ros::NodeHandle node, const std::string &name) :
+  as_(node, name, boost::bind(&GripperController::actuateHandCB, this, _1), false)
+{
   // Parameters
+  node.param<std::string>("gripper_model", gripper_model, "AG-2E");
+  ROS_INFO("Gripper Model: %s", gripper_model.c_str());
+
   node.param<std::string>("connect_port", hand_port_name_, "/dev/DH_hand");
-  node.param<std::string>("hand_model", Hand_Model_, "AG-2E");
+  ROS_INFO("Connection port: %s", hand_port_name_.c_str());
+
   node.param<double>("data_timeout", WaitDataTime_, 0.5);
 
-  ROS_INFO("Hand_model : %s", Hand_Model_.c_str());
-  ROS_INFO("Connect_port: %s", hand_port_name_.c_str());
 
   connect_mode = 0;
   if (hand_port_name_.find('/') != std::string::npos)
@@ -36,7 +38,7 @@ HandController::HandController(ros::NodeHandle node, const std::string &name)
   {
     return;
   }
-  if (initHand())
+  if (init())
   {
     ROS_INFO("Initialized");
   }
@@ -47,21 +49,20 @@ HandController::HandController(ros::NodeHandle node, const std::string &name)
   stalled.resize(1, false);
   reached_goal.resize(1, false);
 
-  ros::ServiceServer service = node.advertiseService("hand_joint_state", &HandController::jointValueCB, this);
+  ros::ServiceServer service = node.advertiseService("gripper_state", &dh::GripperController::jointValueCB, this);
   as_.start();
 
   ROS_INFO("server started");
-
-  ros::spin();
 }
 
-HandController::~HandController()
+
+dh::GripperController::~GripperController()
 {
-  closeDevice();
+  close_device();
 }
 
-bool HandController::jointValueCB(dh_hand_driver::hand_state::Request &req,
-                                  dh_hand_driver::hand_state::Response &res)
+
+bool dh::GripperController::jointValueCB(dh_gripper::GripperState::Request &req, dh_gripper::GripperState::Response &res)
 {
   auto ret = false;
   auto iter = 0;
@@ -72,17 +73,17 @@ bool HandController::jointValueCB(dh_hand_driver::hand_state::Request &req,
     {
     case 0:
       ROS_INFO("request: getMotorForce");
-      Hand.getMotorForce();
+      driver.getMotorForce();
       break;
     case 1:
       ROS_INFO("request: getMotor1Position");
-      Hand.getMotorPosition(1);
+      driver.getMotorPosition(1);
       break;
     case 2:
       ROS_INFO("request: getMotor2Position");
-      if (Hand_Model_ == "AG-3E")
+      if (gripper_model == "AG-3E")
       {
-        Hand.getMotorPosition(2);
+        driver.getMotorPosition(2);
         break;
       }
     default:
@@ -91,9 +92,9 @@ bool HandController::jointValueCB(dh_hand_driver::hand_state::Request &req,
       break;
     }
 
-    if (Writedata(Hand.getStream()))
+    if (write_data(driver.getStream()))
     {
-      if (ensure_get_command(Hand.getStream()))
+      if (ensure_get_command(driver.getStream()))
       {
         ret = true;
         break;
@@ -114,8 +115,9 @@ bool HandController::jointValueCB(dh_hand_driver::hand_state::Request &req,
 }
 
 
-void HandController::actuateHandCB(const control_msgs::GripperCommandGoalConstPtr &goal) {
-  ROS_INFO("Start to move the DH %s Hand", Hand_Model_.c_str());
+void dh::GripperController::actuateHandCB(const control_msgs::GripperCommandGoalConstPtr &goal)
+{
+  ROS_INFO("Start to move the DH %s Gripper", gripper_model.c_str());
 
   int motor_id = 1;
 
@@ -133,13 +135,15 @@ void HandController::actuateHandCB(const control_msgs::GripperCommandGoalConstPt
   // }
 
 
-  if (goal->command.position < 0 || goal->command.position > 100) {
+  if (goal->command.position < 0 || goal->command.position > 100)
+  {
     ROS_ERROR("command position: %.1f, out of range.", goal->command.position);
     as_.setAborted(result);
     return;
   }
 
-  if (goal->command.max_effort < 15 || goal->command.max_effort > 100) {
+  if (goal->command.max_effort < 15 || goal->command.max_effort > 100)
+  {
     ROS_ERROR("command max_effort: %.1f, out of range.", goal->command.max_effort);
     as_.setAborted(result);
     return;
@@ -177,21 +181,19 @@ void HandController::actuateHandCB(const control_msgs::GripperCommandGoalConstPt
     as_.setAborted(result);
 }
 
-/**
- * To build the communication with the servo motors
- *
-* */
-bool HandController::build_conn() {
+
+bool dh::GripperController::build_conn()
+{
   bool hand_connected = false;
 
   if (connect_mode == 1)
   {
     try
     {
-      hand_ser_.setPort(hand_port_name_);
-      serial::Timeout to = serial::Timeout::simpleTimeout(1000);
-      hand_ser_.setTimeout(to);
-      hand_ser_.open();
+      serial.setPort(hand_port_name_);
+      serial::Timeout timeout = serial::Timeout::simpleTimeout(1000);
+      serial.setTimeout(timeout);
+      serial.open();
     }
     catch (serial::IOException &e)
     {
@@ -199,7 +201,7 @@ bool HandController::build_conn() {
       return hand_connected;
     }
 
-    if (hand_ser_.isOpen())
+    if (serial.isOpen())
     {
       ROS_INFO("Serial Port for hand initialized");
       hand_connected = true;
@@ -247,44 +249,40 @@ bool HandController::build_conn() {
 }
 
 
-void HandController::closeDevice()
+bool dh::GripperController::init()
 {
-  // stop communication
-  if (connect_mode == 1)
-    hand_ser_.close();
-  else if (connect_mode == 2)
-    close(sockfd);
-}
-
-
-bool HandController::initHand() {
   auto ret = false;
   auto iter = 0;
   auto wait_iter = 0;
-  Hand.setInitialize();
-  do {
-
-    if (!Writedata(Hand.getStream())) {
+  driver.setInitialize();
+  do
+  {
+    if (!write_data(driver.getStream()))
+    {
       ROS_WARN("setInitialize write data error");
       continue;
     }
 
-    if (!ensure_set_command(Hand.getStream())) {
+    if (!ensure_set_command(driver.getStream()))
+    {
       ROS_WARN("setInitialize wait response timeout");
       continue;
     }
 
     ROS_INFO("init ensure_set_command");
 
-    Hand.setInitialize();
-    do {
+    driver.setInitialize();
+    do
+    {
       ros::Duration(0.5).sleep();
 
-      if (!ensure_get_command(Hand.getStream())) {
+      if (!ensure_get_command(driver.getStream()))
+      {
         continue;
       }
 
-      if (readtempdata.data[0] == 0x01) {
+      if (readtempdata.data[0] == 0x01)
+      {
         ret = true;
       }
 
@@ -296,32 +294,52 @@ bool HandController::initHand() {
 }
 
 
-bool HandController::moveHand(int motor_id, int target_position, bool &feedback) {
+void dh::GripperController::close_device()
+{
+  // stop communication
+  if (connect_mode == 1)
+  {
+    serial.close();
+  }
+  else if (connect_mode == 2)
+  {
+    close(sockfd);
+  }
+}
+
+
+bool dh::GripperController::moveHand(int motor_id, int target_position, bool &feedback)
+{
   auto ret = false;
   auto iter = 0;
   auto wait_iter = 0;
-  do {
-    Hand.setMotorPosition(motor_id, target_position);
+  do
+  {
+    driver.setMotorPosition(motor_id, target_position);
 
-    if (!Writedata(Hand.getStream())) {
+    if (!write_data(driver.getStream()))
+    {
       ROS_WARN("setMotorPosition write data error");
       continue;
     }
 
-    if (!ensure_set_command(Hand.getStream())) {
+    if (!ensure_set_command(driver.getStream()))
+    {
       ROS_WARN("setMotorPosition wait response timeout");
       continue;
     }
 
-    Hand.getFeedback(motor_id);
-    do {
-
-      if (!Writedata(Hand.getStream())) {
+    driver.getFeedback(motor_id);
+    do
+    {
+      if (!write_data(driver.getStream()))
+      {
         ROS_WARN("getFeedback wait response timeout");
         continue;
       }
 
-      if (!ensure_run_end(Hand.getStream())) {
+      if (!ensure_run_end(driver.getStream()))
+      {
         ROS_WARN("getFeedback ensure_run_end wait response timeout");
         continue;
       }
@@ -345,18 +363,20 @@ bool HandController::moveHand(int motor_id, int target_position, bool &feedback)
 }
 
 
-bool HandController::getHandFeedback(int motor_id, bool &feedback) {
+bool dh::GripperController::getHandFeedback(int motor_id, bool &feedback) {
   auto ret = false;
   auto iter = 0;
-  Hand.getFeedback(motor_id);
-  do {
-
-    if (!Writedata(Hand.getStream())) {
+  driver.getFeedback(motor_id);
+  do
+  {
+    if (!write_data(driver.getStream()))
+    {
       ROS_WARN("getFeedback wait response timeout");
       continue;
     }
 
-    if (!ensure_run_end(Hand.getStream())) {
+    if (!ensure_run_end(driver.getStream()))
+    {
       ROS_WARN("getFeedback ensure_run_end wait response timeout");
       continue;
     }
@@ -378,18 +398,20 @@ bool HandController::getHandFeedback(int motor_id, bool &feedback) {
 }
 
 
-bool HandController::getGrippingPosition(int motor_id, int &position) {
+bool dh::GripperController::getGrippingPosition(int motor_id, int &position) {
   auto ret = false;
   auto iter = 0;
-  Hand.getMotorPosition(motor_id);
-  do {
-
-    if (!Writedata(Hand.getStream())) {
+  driver.getMotorPosition(motor_id);
+  do
+  {
+    if (!write_data(driver.getStream()))
+    {
       ROS_WARN("getMotorForce write data error");
       continue;
     }
 
-    if (!ensure_get_command(Hand.getStream())) {
+    if (!ensure_get_command(driver.getStream()))
+    {
       ROS_WARN("getMotorForce wait timeout");
       continue;
     }
@@ -401,14 +423,17 @@ bool HandController::getGrippingPosition(int motor_id, int &position) {
   return ret;
 }
 
-bool HandController::setGrippingForce(int gripping_force) {
+
+bool dh::GripperController::setGrippingForce(int gripping_force)
+{
   auto ret = false;
   auto iter = 0;
-  do {
-    Hand.setMotorForce(gripping_force);
-    if (Writedata(Hand.getStream()))
+  do
+  {
+    driver.setMotorForce(gripping_force);
+    if (write_data(driver.getStream()))
     {
-      if (ensure_set_command(Hand.getStream()))
+      if (ensure_set_command(driver.getStream()))
       {
         ret = true;
         break;
@@ -427,18 +452,22 @@ bool HandController::setGrippingForce(int gripping_force) {
   return ret;
 }
 
-bool HandController::getGrippingForce(int &gripping_force) {
+
+bool dh::GripperController::getGrippingForce(int &gripping_force)
+{
   auto ret = false;
   auto iter = 0;
-  Hand.getMotorForce();
-  do {
-
-    if (!Writedata(Hand.getStream())) {
+  driver.getMotorForce();
+  do
+  {
+    if (!write_data(driver.getStream()))
+    {
       ROS_WARN("getMotorForce write data error");
       continue;
     }
 
-    if (!ensure_get_command(Hand.getStream())) {
+    if (!ensure_get_command(driver.getStream()))
+    {
       ROS_WARN("getMotorForce wait timeout");
       continue;
     }
@@ -451,13 +480,13 @@ bool HandController::getGrippingForce(int &gripping_force) {
 }
 
 
-bool HandController::Writedata(std::vector<uint8_t> data)
+bool dh::GripperController::write_data(std::vector<uint8_t> data)
 {
   bool ret = false;
   // ROS_INFO("send x");
   if (connect_mode == 1)
   {
-    if (hand_ser_.write(data) == data.size())
+    if (serial.write(data) == data.size())
     {
       ret = true;
     }
@@ -472,13 +501,14 @@ bool HandController::Writedata(std::vector<uint8_t> data)
   return ret;
 }
 
-bool HandController::ensure_set_command(std::vector<uint8_t> data)
+
+bool dh::GripperController::ensure_set_command(std::vector<uint8_t> data)
 {
   auto ret = false;
   auto iter = 0;
   do
   {
-    if (Readdata(3))
+    if (read_data(3))
     {
       if (data.at(0) == readtempdata.frame_head[0] &&
           data.at(1) == readtempdata.frame_head[1] &&
@@ -503,13 +533,14 @@ bool HandController::ensure_set_command(std::vector<uint8_t> data)
   return ret;
 }
 
-bool HandController::ensure_get_command(std::vector<uint8_t> data)
+
+bool dh::GripperController::ensure_get_command(std::vector<uint8_t> data)
 {
   auto ret = false;
   auto iter = 0;
   do
   {
-    if (Readdata(3))
+    if (read_data(3))
     {
       if (data.at(0) == readtempdata.frame_head[0] &&
           data.at(1) == readtempdata.frame_head[1] &&
@@ -534,13 +565,14 @@ bool HandController::ensure_get_command(std::vector<uint8_t> data)
   return ret;
 }
 
-bool HandController::ensure_run_end(std::vector<uint8_t> data)
+
+bool dh::GripperController::ensure_run_end(std::vector<uint8_t> data)
 {
   auto ret = false;
   auto iter = 0;
   do
   {
-    if (Readdata(3))
+    if (read_data(3))
     {
       if (data.at(0) == readtempdata.frame_head[0] &&
           data.at(1) == readtempdata.frame_head[1] &&
@@ -565,7 +597,8 @@ bool HandController::ensure_run_end(std::vector<uint8_t> data)
   return ret;
 }
 
-bool HandController::chacke_data(uint8_t *data)
+
+bool dh::GripperController::chacke_data(uint8_t *data)
 {
   if (0xFF == data[0] &&
       0xFE == data[1] &&
@@ -582,7 +615,8 @@ bool HandController::chacke_data(uint8_t *data)
   }
 }
 
-bool HandController::Readdata(uint8_t waitconunt)
+
+bool dh::GripperController::read_data(uint8_t waitconunt)
 {
   auto ret = false;
   auto iter = 0;
@@ -594,22 +628,21 @@ bool HandController::Readdata(uint8_t waitconunt)
     ros::Duration(WaitDataTime_).sleep();
     if (connect_mode == 1)
     {
-      uint8_t count = hand_ser_.available() / 14;
-      uint8_t remain = hand_ser_.available() % 14;
+      uint8_t count = serial.available() / 14;
+      uint8_t remain = serial.available() % 14;
       if (count >= 1 && remain == 0)
       {
         for (; count > 1; count--)
         {
-          hand_ser_.read(buf, 14);
+          serial.read(buf, 14);
         }
-        hand_ser_.read(buf, 14);
+        serial.read(buf, 14);
         readtempdata.DatafromStream(buf, 14);
         getframe = true;
       }
     }
     else if (connect_mode == 2)
     {
-
       std::vector<uint8_t> temp;
       unsigned char tempbuf[140] = {0};
       int get_num = recv(sockfd, tempbuf, 140, MSG_DONTWAIT);

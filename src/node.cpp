@@ -1,11 +1,18 @@
+// roxcpp
 #include <ros/ros.h>
-#include <dh_hand_driver/hand_controller.h>
+// dh_gripper
+#include "dh_gripper/gripper_controller.h"
 
-int main(int argc, char** argv)
+
+int main(int argc, char* argv[])
 {
   ros::init(argc, argv, "hand_controller");
+
+  // Node
   ros::NodeHandle node("~");
-  HandController controller(node, "gripper_command");
+
+  dh::GripperController controller(node, "gripper_command");
+
   ros::spin();
 
   return 0;

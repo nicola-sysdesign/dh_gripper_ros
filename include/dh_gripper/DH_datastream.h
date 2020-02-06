@@ -1,11 +1,12 @@
 ﻿#ifndef DH_DATASTREAM_H
 #define DH_DATASTREAM_H
-#include <stdint.h>
+#include <cstdint>
+#include <cstring>
 
-namespace DH_Robotics{
 
-class DH_DataStream
-{
+namespace DH_Robotics {
+
+class DH_DataStream {
 public:
     //Construct a data stream
     DH_DataStream();

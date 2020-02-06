@@ -6,18 +6,20 @@
  * date: 2018 April 23
 */
 
+#ifndef DH_GRIPPER_DRIVER_H
+#define DH_GRIPPER_DRIVER_H
+#include <vector>
 
-#ifndef DH_HAND_DRIVER
-#define DH_HAND_DRIVER
-
-#include "dh_hand_driver/DH_datastream.h"
-#include "dh_hand_driver/definition.h"
+#include "dh_gripper/definition.h"
+#include "dh_gripper/DH_datastream.h"
 
 /**
  * A controller for an individual joint
  */
-class DH_Hand_Base
-{
+
+namespace dh {
+
+class DH_Driver {
 protected:
     /// default velocity for each joint
     double velocity_;
@@ -32,20 +34,20 @@ protected:
     DH_Robotics::DH_DataStream mDatastream;
 
 public:
-    DH_Hand_Base();
-    ~DH_Hand_Base();
+    DH_Driver();
+    ~DH_Driver();
 
     /**
      * @brief Return  motot 1 current position
      *
      */
-    double position1(){return position_1;}
+    double position1() { return position_1; }
 
     /**
      * @brief Return Velocity.
      *
      */
-    double velocity(){return velocity_;}
+    double velocity() { return velocity_; }
 
     /**
      * @brief this function is reserve , do not use it
@@ -57,7 +59,7 @@ public:
      * @brief this function is reserve , do not use it
      *
      */
-    void setMotorVelocity(double p) {velocity_ = (int)p;}
+    void setMotorVelocity(double p) { velocity_ = (int)p; }
 
     /**
      * @brief Get the vector Steam
@@ -87,7 +89,7 @@ public:
     *
     * @param target_position
     */
-    void setMotorPosition(int MotorID , const int &target_position);
+    void setMotorPosition(int motor_id , const int &target_position);
 
     /**
      * @brief Set the Motor Force
@@ -107,14 +109,15 @@ public:
      *
      * @param MotorID
      */
-    void getMotorPosition(const int &MotorID);
+    void getMotorPosition(const int &motor_id);
 
     /**
      * @brief Get the Feedback
      *
      * @param MotorID
      */
-    void getFeedback(const int &MotorID);
+    void getFeedback(const int &motor_id);
 };
 
+} // namespace
 #endif

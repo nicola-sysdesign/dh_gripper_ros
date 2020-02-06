@@ -1,5 +1,5 @@
 <package format="2">
-  <name>dh_hand_driver</name>
+  <name>dh_gripper</name>
   <version>0.0.0</version>
   <description>
     The dh_hand_driver package

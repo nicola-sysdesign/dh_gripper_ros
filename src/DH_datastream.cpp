@@ -1,16 +1,17 @@
-﻿
-#include "DH_datastream.h"
-#include <stdint.h>
-#include <string.h>
+﻿#include "dh_gripper/DH_datastream.h"
+
+
 DH_Robotics::DH_DataStream::DH_DataStream()
 {
     DataStream_clear();
 }
 
+
 DH_Robotics::DH_DataStream::~DH_DataStream()
 {
 
 }
+
 
 void DH_Robotics::DH_DataStream::DataStream_clear()
 {
@@ -31,6 +32,7 @@ void DH_Robotics::DH_DataStream::DataStream_clear()
     size = (uint8_t)(&size - frame_head);
 }
 
+
 int DH_Robotics::DH_DataStream::DatatoStream(uint8_t *buf,uint8_t len)
 {
     if(len!=size)
@@ -41,6 +43,7 @@ int DH_Robotics::DH_DataStream::DatatoStream(uint8_t *buf,uint8_t len)
     return 0;
 
 }
+
 
 int DH_Robotics::DH_DataStream::DatafromStream(uint8_t *buf,uint8_t len)
 {

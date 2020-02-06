@@ -1,0 +1,14 @@
+<launch>
+  <arg name="gripper" default="AG-2E"/>
+
+  <!-- via USB -->
+  <!--<param name="Connect_port" type="string" value="/dev/DH_hand"/>-->
+
+  <!-- via TCP -->
+  <node name="gripper_controller"  pkg="dh_gripper" type="gripper_controller" output="screen">
+    <param name="gripper_model" type="string" value="$(arg gripper)" />
+    <param name="connect_port" type="string" value="192.168.1.29:8888" />
+    <param name="data_timeout" type="double" value="0.05" />
+  </node>
+
+</launch>

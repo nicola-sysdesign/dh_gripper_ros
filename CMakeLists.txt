@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(dh_hand_driver)
+project(dh_gripper)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
@@ -25,7 +25,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## Generate services in the 'srv' folder
 add_service_files(
   DIRECTORY srv
-  FILES hand_state.srv
+  FILES GripperState.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -50,17 +50,11 @@ generate_messages(
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-  INCLUDE_DIRS
-    include
-  CATKIN_DEPENDS
-    roscpp
-    rospy
-    std_msgs
-    actionlib
-    actionlib_msgs
-    serial
-    control_msgs
-    message_runtime
+  INCLUDE_DIRS include
+# LIBRARIES
+  CATKIN_DEPENDS roscpp rospy std_msgs actionlib actionlib_msgs serial
+    control_msgs message_runtime
+# DEPENDS
 )
 
 ###########
@@ -69,11 +63,7 @@ catkin_package(
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
-include_directories(
-  ${catkin_INCLUDE_DIRS}
-  include
-  include/dh_hand_driver
-)
+include_directories(include ${catkin_INCLUDE_DIRS})
 
 #add_library(${PROJECT_NAME} SHARED
 #include/dh_hand_driver/hand_controller.cpp
@@ -84,20 +74,16 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(hand_controller
-include/dh_hand_driver/hand_controller.cpp
-include/dh_hand_driver/DH_datastream.cpp
-include/dh_hand_driver/hand_driver.cpp
-src/node.cpp)
+add_executable(gripper_controller src/node.cpp src/gripper_controller.cpp
+src/gripper_driver.cpp src/DH_datastream.cpp)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-add_dependencies(hand_controller
-  dh_hand_driver_generate_messages_cpp
-  ${dh_hand_driver_EXPORTED_TARGETS})
+#add_dependencies(gripper_controller dh_hand_driver_generate_messages_cpp
+#${dh_hand_driver_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(hand_controller ${catkin_LIBRARIES})
+target_link_libraries(gripper_controller ${catkin_LIBRARIES})
 
 
 # add_executable(hand_controller_client
