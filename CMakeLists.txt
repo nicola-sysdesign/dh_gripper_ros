@@ -18,6 +18,9 @@ find_package(catkin REQUIRED COMPONENTS
   message_generation
 )
 
+## System dependencies are found with CMake's conventions
+find_package(Boost REQUIRED)
+
 ################################################
 ## Declare ROS messages, services and actions ##
 ################################################
@@ -63,7 +66,11 @@ catkin_package(
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
-include_directories(include ${catkin_INCLUDE_DIRS})
+include_directories(
+  include
+  ${catkin_INCLUDE_DIRS}
+  ${Boost_INCLUDE_DIRS}
+)
 
 #add_library(${PROJECT_NAME} SHARED
 #include/dh_hand_driver/hand_controller.cpp
@@ -83,7 +90,7 @@ src/gripper_driver.cpp src/DH_datastream.cpp)
 #${dh_hand_driver_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(gripper_controller ${catkin_LIBRARIES})
+target_link_libraries(gripper_controller ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 
 # add_executable(hand_controller_client

@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 
 #include <ros/ros.h>
+#include <ros/console.h>
 #include <actionlib/server/simple_action_server.h>
 #include <serial/serial.h>
 #include <control_msgs/GripperCommandAction.h>
@@ -17,12 +18,18 @@
 #include "dh_gripper/definition.h"
 #include "dh_gripper/gripper_driver.h"
 #include "dh_gripper/GripperState.h"
+// Boost
+#include <boost/bind.hpp>
 
 
 namespace dh {
 
+const double MIN_POSITION_LIMIT = 0, MAX_POSITION_LIMIT = 100;
+const double MIN_EFFORT_LIMIT = 15, MAX_EFFORT_LIMIT = 100;
+
 class GripperController {
 private:
+
   //connect mode
   int connect_mode;
 
@@ -39,11 +46,13 @@ private:
   std::string gripper_model;
 
   // Wait data time;
-  double WaitDataTime_;
+  double data_timeout;
 
 
-  /// actionlib Server
-  actionlib::SimpleActionServer<control_msgs::GripperCommandAction> as_;
+  ros::NodeHandle node;
+
+  // Action Server
+  actionlib::SimpleActionServer<control_msgs::GripperCommandAction> gripper_command_asrv;
 
   std::vector<double> joint_pos;
   std::vector<double> joint_eff;
@@ -53,7 +62,7 @@ private:
 
 
 public:
-  GripperController(ros::NodeHandle node, const std::string &name);
+  GripperController(const ros::NodeHandle &node = ros::NodeHandle(), const std::string &action_ns = "gripper_command");
   ~GripperController();
 
   std::mutex R_mutex;
@@ -69,7 +78,7 @@ public:
    *
    * @param goal
    */
-  void actuateHandCB(const control_msgs::GripperCommandGoalConstPtr &goal);
+  void execute_cb(const control_msgs::GripperCommandGoalConstPtr &goal);
 
   /**
    * @brief Open DH_Hand communication

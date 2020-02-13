@@ -11,8 +11,9 @@ Copyright @ DH-Robotics Ltd.
 #include "dh_gripper/gripper_controller.h"
 
 
-dh::GripperController::GripperController(ros::NodeHandle node, const std::string &name) :
-  as_(node, name, boost::bind(&GripperController::actuateHandCB, this, _1), false)
+dh::GripperController::GripperController(const ros::NodeHandle &node, const std::string &action_ns) :
+  node(node),
+  gripper_command_asrv(node, action_ns, boost::bind(&dh::GripperController::execute_cb, this, _1), false)
 {
   // Parameters
   node.param<std::string>("gripper_model", gripper_model, "AG-2E");
@@ -21,7 +22,8 @@ dh::GripperController::GripperController(ros::NodeHandle node, const std::string
   node.param<std::string>("connect_port", hand_port_name_, "/dev/DH_hand");
   ROS_INFO("Connection port: %s", hand_port_name_.c_str());
 
-  node.param<double>("data_timeout", WaitDataTime_, 0.5);
+  node.param<double>("data_timeout", data_timeout, 0.5);
+  ROS_DEBUG("data_timeout: %.1fs", data_timeout);
 
 
   connect_mode = 0;
@@ -49,8 +51,9 @@ dh::GripperController::GripperController(ros::NodeHandle node, const std::string
   stalled.resize(1, false);
   reached_goal.resize(1, false);
 
-  ros::ServiceServer service = node.advertiseService("gripper_state", &dh::GripperController::jointValueCB, this);
-  as_.start();
+  // ros::ServiceServer service = node.advertiseService("gripper_state", &dh::GripperController::jointValueCB, this);
+
+  gripper_command_asrv.start();
 
   ROS_INFO("server started");
 }
@@ -115,70 +118,83 @@ bool dh::GripperController::jointValueCB(dh_gripper::GripperState::Request &req,
 }
 
 
-void dh::GripperController::actuateHandCB(const control_msgs::GripperCommandGoalConstPtr &goal)
+void dh::GripperController::execute_cb(const control_msgs::GripperCommandGoalConstPtr &goal)
 {
-  ROS_INFO("Start to move the DH %s Gripper", gripper_model.c_str());
+  ROS_INFO("DH %s: Command Execution", gripper_model.c_str());
 
   int motor_id = 1;
 
+  int pos; double pos_cmd;
+  int eff; double eff_cmd;
+
+  pos_cmd = goal->command.position;
+  eff_cmd = goal->command.max_effort;
+
+  getGrippingPosition(motor_id, pos);
+  getGrippingForce(eff);
+
+
   control_msgs::GripperCommandFeedback feedback;
+  feedback.position = pos;
+  feedback.effort = eff;
+  feedback.stalled = false;
+  feedback.reached_goal = false;
+
   control_msgs::GripperCommandResult result;
-  bool succeeded = false;
-  bool bFeedback = false;
-
-  // move Motor
-  // if (Hand_Model_ == "AG-2E" && goal->MotorID == 2)
-  // {
-  //   ROS_ERROR("invalid AG-2E command");
-  //   as_.setAborted(result);
-  //   return;
-  // }
+  result.position = pos;
+  result.effort = eff;
+  result.stalled = false;
+  result.reached_goal = false;
 
 
-  if (goal->command.position < 0 || goal->command.position > 100)
+  if (pos_cmd < dh::MIN_POSITION_LIMIT || dh::MAX_POSITION_LIMIT < pos_cmd)
   {
-    ROS_ERROR("command position: %.1f, out of range.", goal->command.position);
-    as_.setAborted(result);
+    ROS_ERROR("command position: %.1f, out of range.", pos_cmd);
+    gripper_command_asrv.setAborted(result);
     return;
   }
 
-  if (goal->command.max_effort < 15 || goal->command.max_effort > 100)
+  if (eff_cmd < dh::MIN_EFFORT_LIMIT || eff_cmd > dh::MAX_EFFORT_LIMIT)
   {
-    ROS_ERROR("command max_effort: %.1f, out of range.", goal->command.max_effort);
-    as_.setAborted(result);
+    ROS_ERROR("command max_effort: %.1f, out of range.", eff_cmd);
+    control_msgs::GripperCommandResult result;
+    gripper_command_asrv.setAborted(result);
     return;
   }
 
+  //
+  setGrippingForce(eff_cmd);
 
-  setGrippingForce(goal->command.max_effort);
-  succeeded = moveHand(motor_id, goal->command.position, bFeedback);
+  bool not_stalled;
+  if (!moveHand(motor_id, pos_cmd, not_stalled))
+  {
+    ROS_WARN("Failed to actuate the Gripper.");
+    control_msgs::GripperCommandResult result;
+    gripper_command_asrv.setAborted(result);
+    return;
+  }
 
-  int position;
-  int effort;
+  getGrippingPosition(motor_id, pos);
+  getGrippingForce(eff);
 
-  getGrippingPosition(motor_id, position);
-  getGrippingForce(effort);
+  feedback.position = pos;
+  feedback.effort = eff;
+  feedback.stalled = !not_stalled;
+  feedback.reached_goal = (pos == pos_cmd) ? true : false;
+  gripper_command_asrv.publishFeedback(feedback);
 
-  feedback.position = position;
-  feedback.effort = effort;
-  feedback.stalled = !bFeedback;
-  feedback.reached_goal = bFeedback;
-  as_.publishFeedback(feedback);
+  // wait
+  ros::Duration(data_timeout).sleep();
 
-  ros::Duration(WaitDataTime_).sleep();
 
-  getGrippingPosition(motor_id, position);
-  getGrippingForce(effort);
+  getGrippingPosition(motor_id, pos);
+  getGrippingForce(eff);
 
-  result.position = position;
-  result.effort = effort;
-  result.stalled = !bFeedback;
-  result.reached_goal = bFeedback;
-
-  if (succeeded)
-    as_.setSucceeded(result);
-  else
-    as_.setAborted(result);
+  result.position = pos;
+  result.effort = eff;
+  result.stalled = !not_stalled;
+  result.reached_goal = (pos == pos_cmd) ? true : false;
+  gripper_command_asrv.setSucceeded(result);
 }
 
 
@@ -625,7 +641,7 @@ bool dh::GripperController::read_data(uint8_t waitconunt)
 
   do
   {
-    ros::Duration(WaitDataTime_).sleep();
+    ros::Duration(data_timeout).sleep();
     if (connect_mode == 1)
     {
       uint8_t count = serial.available() / 14;
