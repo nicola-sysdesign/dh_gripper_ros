@@ -12,13 +12,20 @@ int main(int argc, char* argv[])
   // Node
   ros::NodeHandle node("~");
 
-
+  //
   dh::GripperController controller(node, "gripper_command");
 
-  controller.init();
+  if (!controller.init())
+  {
+    ROS_FATAL("Failed to initialize Gripper Controller!");
+    return 1;
+  }
 
-  controller.start();
-
+  if (!controller.start())
+  {
+    ROS_FATAL("Failed to start Gripper Controller!");
+    return 1;
+  }
 
   ros::MultiThreadedSpinner spinner(2);
   spinner.spin();

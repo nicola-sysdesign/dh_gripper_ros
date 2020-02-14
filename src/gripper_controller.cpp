@@ -15,31 +15,7 @@ dh::GripperController::GripperController(const ros::NodeHandle &node, const std:
   node(node),
   gripper_command_asrv(node, action_ns, boost::bind(&dh::GripperController::execute_cb, this, _1), false)
 {
-  // Parameters
-  node.param<std::string>("gripper_model", gripper_model, "AG-2E");
-  ROS_INFO("Gripper Model: %s", gripper_model.c_str());
 
-  node.param<std::string>("connect_port", hand_port_name_, "/dev/DH_hand");
-  ROS_INFO("Connection port: %s", hand_port_name_.c_str());
-
-  node.param<double>("data_timeout", data_timeout, 0.5);
-  ROS_DEBUG("data_timeout: %.2fs", data_timeout);
-
-
-  connect_mode = 0;
-  if (hand_port_name_.find('/') != std::string::npos)
-  {
-    connect_mode = 1;
-  }
-  if (hand_port_name_.find(':') != std::string::npos)
-  {
-    connect_mode = 2;
-  }
-  ROS_INFO("connect_mode : %d", connect_mode);
-  if (!build_conn())
-  {
-    return;
-  }
 }
 
 
@@ -51,30 +27,59 @@ dh::GripperController::~GripperController()
 
 bool dh::GripperController::init()
 {
+  // Parameters
+  node.param<std::string>("gripper/model", gripper_model, "AG-95");
+  node.param<double>("data_timeout", data_timeout, 0.5);
+
+  //
+  if (node.getParam("usb/port", usb_port))
+  {
+    connect_mode = 1;
+
+    if (!usb_connect(usb_port))
+    {
+      ROS_FATAL("Failed to connect to %s", gripper_model.c_str());
+      return false;
+    }
+  }
+  else
+  {
+    connect_mode = 2;
+
+    auto ip = node.param<std::string>("tcp/ip", "192.168.1.29");
+    auto port = node.param<int>("tcp/port", 8888);
+
+    if (!tcp_connect(ip, port))
+    {
+      ROS_FATAL("Failed to connect to %s", gripper_model.c_str());
+      return false;
+    }
+  }
+
   if (!init_device())
   {
-    ROS_FATAL("Failed to initialize the Gripper!");
+    ROS_FATAL("Failed to initialize Gripper %s", gripper_model.c_str());
     return false;
   }
 
   //
+  double freq = node.param<double>("publish_frequency", 1.0);
+
+  //
   joint_state_pub = node.advertise<sensor_msgs::JointState>("joint_states", 10);
 
+  ros::Duration period(1.0);
+  timer = node.createTimer(period, &dh::GripperController::timer_cb, this);
+
+  ROS_INFO("Gripper %s initialized successfully.", gripper_model.c_str());
   return true;
 }
 
 
 bool dh::GripperController::start()
 {
-  double freq = node.param<double>("publish_frequency", 10.0);
-
-  //
-  ros::Duration period(1.0);
-  timer = node.createTimer(period, &dh::GripperController::timer_cb, this);
-
   //
   gripper_command_asrv.start();
-
   return true;
 }
 
@@ -195,70 +200,59 @@ void dh::GripperController::execute_cb(const control_msgs::GripperCommandGoalCon
 }
 
 
-bool dh::GripperController::build_conn()
+bool dh::GripperController::usb_connect(const std::string &usb_port)
 {
-  bool hand_connected = false;
-
-  if (connect_mode == 1)
+  try
   {
-    try
-    {
-      serial.setPort(hand_port_name_);
-      serial::Timeout timeout = serial::Timeout::simpleTimeout(1000);
-      serial.setTimeout(timeout);
-      serial.open();
-    }
-    catch (serial::IOException &e)
-    {
-      ROS_ERROR("Unable to open port of the hand");
-      return hand_connected;
-    }
-
-    if (serial.isOpen())
-    {
-      ROS_INFO("Serial Port for hand initialized");
-      hand_connected = true;
-    }
-    else
-    {
-      return hand_connected;
-    }
+    serial.setPort(usb_port.c_str());
+    serial::Timeout timeout = serial::Timeout::simpleTimeout(1000);
+    serial.setTimeout(timeout);
+    serial.open();
   }
-  else if (connect_mode == 2)
+  catch (serial::IOException &ex)
   {
-
-    std::string servInetAddr = hand_port_name_.substr(0, hand_port_name_.find(":"));
-    int PORT = atoi(hand_port_name_.substr(hand_port_name_.find(":") + 1, hand_port_name_.size() - hand_port_name_.find(":") - 1).c_str());
-
-    /*创建socket*/
-    struct sockaddr_in serv_addr;
-    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) != -1)
-    {
-      ROS_INFO("Socket id = %d", sockfd);
-      /*设置sockaddr_in 结构体中相关参数*/
-      serv_addr.sin_family = AF_INET;
-      serv_addr.sin_port = htons(PORT);
-      inet_pton(AF_INET, servInetAddr.c_str(), &serv_addr.sin_addr);
-      bzero(&(serv_addr.sin_zero), 8);
-      /*调用connect 函数主动发起对服务器端的连接*/
-      if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
-      {
-        ROS_ERROR("Connect failed!\n");
-        hand_connected = false;
-      }
-      else
-      {
-        ROS_INFO("connected");
-        hand_connected = true;
-      }
-    }
-    else
-    {
-      ROS_ERROR("Socket failed!\n");
-      hand_connected = false;
-    }
+    return false;
   }
-  return hand_connected;
+
+  if (!serial.isOpen())
+  {
+    ROS_ERROR("Failed to open USB port: %s", usb_port.c_str());
+    return false;
+  }
+
+  ROS_INFO("Connected to USB: %s", usb_port.c_str());
+  return true;
+}
+
+
+bool dh::GripperController::tcp_connect(const std::string &ip, const int port)
+{
+  // socket
+  if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+  {
+    ROS_ERROR("Socket failed!");
+    return false;
+  }
+
+  ROS_DEBUG("Socket ID: %d", sockfd);
+
+  // sockaddr_in
+  struct sockaddr_in serv_addr;
+  serv_addr.sin_family = AF_INET;
+  serv_addr.sin_port = htons(port);
+
+  inet_pton(AF_INET, ip.c_str(), &serv_addr.sin_addr);
+  bzero(&(serv_addr.sin_zero), 8);
+
+  // connect
+  if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
+  {
+    ROS_ERROR("Failed to connect to %s:%d", ip.c_str(), port);
+    return false;
+  }
+
+  ROS_INFO("Connected to %s:%d", ip.c_str(), port);
+  return true;
 }
 
 

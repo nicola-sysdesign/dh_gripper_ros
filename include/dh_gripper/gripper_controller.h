@@ -38,24 +38,21 @@ private:
 
   ros::NodeHandle node;
 
-
-  //connect mode
-  int connect_mode;
-
-  /// Serial ports instance
+  //
   serial::Serial serial;
-
-  //socket id
+  //
   int sockfd;
-
-  /// controllers for the individual servo motors
-  std::string hand_port_name_;
-
 
   /// DH Hand Model
   std::string gripper_model;
 
-  // Wait data time;
+  //
+  int connect_mode = 0;
+  //
+  std::string usb_port;
+  //
+  std::string tcp_ip; int tcp_port;
+  //
   double data_timeout;
 
   //
@@ -116,7 +113,9 @@ public:
    *
    * @return true on success; otherwise returns false.
    */
-  bool build_conn();
+  bool usb_connect(const std::string &usb);
+
+  bool tcp_connect(const std::string &ip, const int port);
 
   /**
    * @brief Initialize the Hand

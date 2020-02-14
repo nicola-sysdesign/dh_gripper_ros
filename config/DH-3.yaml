@@ -1,0 +1,9 @@
+##########
+## DH-3 ##
+##########
+
+model: 'DH-3'
+
+joints:
+  - finger1_joint
+  - finger2_joint
