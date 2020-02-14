@@ -23,7 +23,7 @@ dh::GripperController::GripperController(const ros::NodeHandle &node, const std:
   ROS_INFO("Connection port: %s", hand_port_name_.c_str());
 
   node.param<double>("data_timeout", data_timeout, 0.5);
-  ROS_DEBUG("data_timeout: %.1fs", data_timeout);
+  ROS_DEBUG("data_timeout: %.2fs", data_timeout);
 
 
   connect_mode = 0;
@@ -40,22 +40,6 @@ dh::GripperController::GripperController(const ros::NodeHandle &node, const std:
   {
     return;
   }
-  if (init())
-  {
-    ROS_INFO("Initialized");
-  }
-
-  joint_pos.resize(1, 0.0);
-  joint_eff.resize(1, 0.0);
-
-  stalled.resize(1, false);
-  reached_goal.resize(1, false);
-
-  // ros::ServiceServer service = node.advertiseService("gripper_state", &dh::GripperController::jointValueCB, this);
-
-  gripper_command_asrv.start();
-
-  ROS_INFO("server started");
 }
 
 
@@ -65,56 +49,69 @@ dh::GripperController::~GripperController()
 }
 
 
-bool dh::GripperController::jointValueCB(dh_gripper::GripperState::Request &req, dh_gripper::GripperState::Response &res)
+bool dh::GripperController::init()
 {
-  auto ret = false;
-  auto iter = 0;
-  do
+  if (!init_device())
   {
-    readtempdata.DataStream_clear();
-    switch (req.get_target)
-    {
-    case 0:
-      ROS_INFO("request: getMotorForce");
-      driver.getMotorForce();
-      break;
-    case 1:
-      ROS_INFO("request: getMotor1Position");
-      driver.getMotorPosition(1);
-      break;
-    case 2:
-      ROS_INFO("request: getMotor2Position");
-      if (gripper_model == "AG-3E")
-      {
-        driver.getMotorPosition(2);
-        break;
-      }
-    default:
-      ROS_ERROR("invalid read command");
-      return false;
-      break;
-    }
+    ROS_FATAL("Failed to initialize the Gripper!");
+    return false;
+  }
 
-    if (write_data(driver.getStream()))
-    {
-      if (ensure_get_command(driver.getStream()))
-      {
-        ret = true;
-        break;
-      }
-      else
-      {
-        ROS_WARN("jointValueCB wait timeout");
-      }
-    }
-    else
-    {
-      ROS_WARN("jointValueCB write command");
-    }
-  } while (iter++ < 2);
+  //
+  joint_state_pub = node.advertise<sensor_msgs::JointState>("joint_states", 10);
 
-  res.return_data = readtempdata.data[0];
-  return ret;
+  return true;
+}
+
+
+bool dh::GripperController::start()
+{
+  double freq = node.param<double>("publish_frequency", 10.0);
+
+  //
+  ros::Duration period(1.0);
+  timer = node.createTimer(period, &dh::GripperController::timer_cb, this);
+
+  //
+  gripper_command_asrv.start();
+
+  return true;
+}
+
+
+void dh::GripperController::timer_cb(const ros::TimerEvent &ev)
+{
+  int motor_id = 1;
+
+  int pos;
+  int eff;
+
+  if (!getGrippingPosition(motor_id, pos))
+  {
+    ROS_WARN_THROTTLE(1.0, "Failed to get gripping position.");
+    return;
+  }
+
+  if(!getGrippingForce(eff))
+  {
+    ROS_WARN_THROTTLE(1.0, "Failed to get gripping force.");
+    return;
+  }
+
+
+  double joint_pos = (0.80 - 0.80 * (pos / 100.0));
+  double joint_eff = eff;
+
+  sensor_msgs::JointState joint_state;
+  joint_state.header.stamp = ros::Time::now();
+  joint_state.name.resize(1);
+  joint_state.name[0] = "finger_joint";
+  joint_state.position.resize(1);
+  joint_state.position[0] = joint_pos;
+  joint_state.effort.resize(1);
+  joint_state.effort[0] = joint_eff;
+  joint_state_pub.publish(joint_state);
+  return;
 }
 
 
@@ -166,9 +163,9 @@ void dh::GripperController::execute_cb(const control_msgs::GripperCommandGoalCon
   setGrippingForce(eff_cmd);
 
   bool not_stalled;
-  if (!moveHand(motor_id, pos_cmd, not_stalled))
+  if (!actuate_gripper(motor_id, pos_cmd, not_stalled))
   {
-    ROS_WARN("Failed to actuate the Gripper.");
+    ROS_WARN("Failed to actuate the Gripper!");
     control_msgs::GripperCommandResult result;
     gripper_command_asrv.setAborted(result);
     return;
@@ -265,14 +262,14 @@ bool dh::GripperController::build_conn()
 }
 
 
-bool dh::GripperController::init()
+bool dh::GripperController::init_device()
 {
   auto ret = false;
   auto iter = 0;
-  auto wait_iter = 0;
-  driver.setInitialize();
   do
   {
+    driver.setInitialize();
+
     if (!write_data(driver.getStream()))
     {
       ROS_WARN("setInitialize write data error");
@@ -285,12 +282,11 @@ bool dh::GripperController::init()
       continue;
     }
 
-    ROS_INFO("init ensure_set_command");
-
-    driver.setInitialize();
+    ROS_DEBUG("init ensure_set_command");
+    auto wait_iter = 0;
     do
     {
-      ros::Duration(0.5).sleep();
+      ros::Duration(data_timeout).sleep();
 
       if (!ensure_get_command(driver.getStream()))
       {
@@ -324,11 +320,10 @@ void dh::GripperController::close_device()
 }
 
 
-bool dh::GripperController::moveHand(int motor_id, int target_position, bool &feedback)
+bool dh::GripperController::actuate_gripper(int motor_id, int target_position, bool &feedback)
 {
   auto ret = false;
   auto iter = 0;
-  auto wait_iter = 0;
   do
   {
     driver.setMotorPosition(motor_id, target_position);
@@ -346,6 +341,8 @@ bool dh::GripperController::moveHand(int motor_id, int target_position, bool &fe
     }
 
     driver.getFeedback(motor_id);
+
+    auto wait_iter = 0;
     do
     {
       if (!write_data(driver.getStream()))
@@ -360,15 +357,17 @@ bool dh::GripperController::moveHand(int motor_id, int target_position, bool &fe
         continue;
       }
 
-      if (readtempdata.data[0] == DH_Robotics::FeedbackType::ARRIVED)
+      switch (readtempdata.data[0])
       {
-        feedback = true;
-        ret = true;
-      }
-      else if (readtempdata.data[0] == DH_Robotics::FeedbackType::CATCHED)
-      {
-        feedback = false;
-        ret = true;
+        case DH_Robotics::FeedbackType::ARRIVED:
+          feedback = true;
+          ret = true;
+          break;
+
+        case DH_Robotics::FeedbackType::CATCHED:
+          feedback = false;
+          ret = true;
+          break;
       }
 
     } while (ret == false && wait_iter++ < 100);
@@ -379,7 +378,8 @@ bool dh::GripperController::moveHand(int motor_id, int target_position, bool &fe
 }
 
 
-bool dh::GripperController::getHandFeedback(int motor_id, bool &feedback) {
+bool dh::GripperController::getHandFeedback(int motor_id, bool &feedback)
+{
   auto ret = false;
   auto iter = 0;
   driver.getFeedback(motor_id);
@@ -397,15 +397,17 @@ bool dh::GripperController::getHandFeedback(int motor_id, bool &feedback) {
       continue;
     }
 
-    if (readtempdata.data[0] == DH_Robotics::FeedbackType::ARRIVED)
+    switch (readtempdata.data[0])
     {
-      feedback = true;
-      ret = true;
-    }
-    else if (readtempdata.data[0] == DH_Robotics::FeedbackType::CATCHED)
-    {
-      feedback = false;
-      ret = true;
+      case DH_Robotics::FeedbackType::ARRIVED:
+        feedback = true;
+        ret = true;
+        break;
+
+      case DH_Robotics::FeedbackType::CATCHED:
+        feedback = false;
+        ret = true;
+        break;
     }
 
   } while (ret == false && iter++ < 100);
@@ -414,7 +416,8 @@ bool dh::GripperController::getHandFeedback(int motor_id, bool &feedback) {
 }
 
 
-bool dh::GripperController::getGrippingPosition(int motor_id, int &position) {
+bool dh::GripperController::getGrippingPosition(int motor_id, int &position)
+{
   auto ret = false;
   auto iter = 0;
   driver.getMotorPosition(motor_id);
@@ -434,6 +437,7 @@ bool dh::GripperController::getGrippingPosition(int motor_id, int &position) {
 
     position = readtempdata.data[0];
     ret = true;
+
   } while (ret == false && iter++ < 3);
 
   return ret;
@@ -447,23 +451,22 @@ bool dh::GripperController::setGrippingForce(int gripping_force)
   do
   {
     driver.setMotorForce(gripping_force);
-    if (write_data(driver.getStream()))
-    {
-      if (ensure_set_command(driver.getStream()))
-      {
-        ret = true;
-        break;
-      }
-      else
-      {
-        ROS_WARN("setMotorForce wait timeout");
-      }
-    }
-    else
+
+    if (!write_data(driver.getStream()))
     {
       ROS_WARN("setMotorForce write data error");
+      continue;
     }
-  } while (iter++ < 3);
+
+    if (!ensure_set_command(driver.getStream()))
+    {
+      ROS_WARN("setMotorForce wait timeout");
+      continue;
+    }
+
+    ret = true;
+
+  } while (ret == false && iter++ < 3);
 
   return ret;
 }
@@ -490,6 +493,7 @@ bool dh::GripperController::getGrippingForce(int &gripping_force)
 
     gripping_force = readtempdata.data[0];
     ret = true;
+
   } while (ret == false && iter++ < 3);
 
   return ret;
@@ -498,8 +502,8 @@ bool dh::GripperController::getGrippingForce(int &gripping_force)
 
 bool dh::GripperController::write_data(std::vector<uint8_t> data)
 {
-  bool ret = false;
-  // ROS_INFO("send x");
+  auto ret = false;
+
   if (connect_mode == 1)
   {
     if (serial.write(data) == data.size())
@@ -546,6 +550,7 @@ bool dh::GripperController::ensure_set_command(std::vector<uint8_t> data)
       }
     }
   } while (iter++ < 1);
+
   return ret;
 }
 
@@ -578,6 +583,7 @@ bool dh::GripperController::ensure_get_command(std::vector<uint8_t> data)
       }
     }
   } while (iter++ < 1);
+
   return ret;
 }
 
@@ -606,15 +612,15 @@ bool dh::GripperController::ensure_run_end(std::vector<uint8_t> data)
           data.at(13) == readtempdata.frame_end)
       {
         ret = true;
-        break;
       }
     }
-  } while (iter++ < 1);
+  } while (ret == false && iter++ < 1);
+
   return ret;
 }
 
 
-bool dh::GripperController::chacke_data(uint8_t *data)
+bool dh::GripperController::check_data(uint8_t *data)
 {
   if (0xFF == data[0] &&
       0xFE == data[1] &&
@@ -632,7 +638,7 @@ bool dh::GripperController::chacke_data(uint8_t *data)
 }
 
 
-bool dh::GripperController::read_data(uint8_t waitconunt)
+bool dh::GripperController::read_data(uint8_t wait_count)
 {
   auto ret = false;
   auto iter = 0;
@@ -660,10 +666,14 @@ bool dh::GripperController::read_data(uint8_t waitconunt)
     else if (connect_mode == 2)
     {
       std::vector<uint8_t> temp;
-      unsigned char tempbuf[140] = {0};
+      unsigned char tempbuf[140] = { 0 };
+
       int get_num = recv(sockfd, tempbuf, 140, MSG_DONTWAIT);
       for (int i = 0; i < get_num; i++)
+      {
         temp.push_back(tempbuf[i]);
+      }
+
       uint8_t count = temp.size() / 14;
       uint8_t remain = temp.size() % 14;
       if (count >= 1 && remain == 0)
@@ -684,14 +694,13 @@ bool dh::GripperController::read_data(uint8_t waitconunt)
 
     if (getframe)
     {
-      if (chacke_data(buf))
+      if (check_data(buf))
       {
         // ROS_INFO("Read: %X %X %X %X %X %X %X %X %X %X %X %X %X %X", buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8], buf[9], buf[10], buf[11], buf[12], buf[13]);
         ret = true;
-        break;
       }
     }
-  } while (iter++ < waitconunt);
+  } while (ret == false && iter++ < wait_count);
 
   // if (iter >= waitconunt)
   //   ROS_ERROR_STREAM("Read Overtime you can increase 'WaitDataTime' in launch file ");

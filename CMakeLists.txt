@@ -14,6 +14,7 @@ find_package(catkin REQUIRED COMPONENTS
   actionlib
   actionlib_msgs
   serial
+  sensor_msgs
   control_msgs
   message_generation
 )
@@ -56,7 +57,7 @@ catkin_package(
   INCLUDE_DIRS include
 # LIBRARIES
   CATKIN_DEPENDS roscpp rospy std_msgs actionlib actionlib_msgs serial
-    control_msgs message_runtime
+    sensor_msgs control_msgs message_runtime
 # DEPENDS
 )
 
@@ -81,7 +82,7 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(gripper_controller src/node.cpp src/gripper_controller.cpp
+add_executable(dh_controller src/gripper_node.cpp src/gripper_controller.cpp
 src/gripper_driver.cpp src/DH_datastream.cpp)
 
 ## Add cmake target dependencies of the executable
@@ -90,7 +91,7 @@ src/gripper_driver.cpp src/DH_datastream.cpp)
 #${dh_hand_driver_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(gripper_controller ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+target_link_libraries(dh_controller ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 
 # add_executable(hand_controller_client

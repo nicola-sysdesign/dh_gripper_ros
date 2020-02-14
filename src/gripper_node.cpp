@@ -12,9 +12,16 @@ int main(int argc, char* argv[])
   // Node
   ros::NodeHandle node("~");
 
+
   dh::GripperController controller(node, "gripper_command");
 
-  ros::spin();
+  controller.init();
+
+  controller.start();
+
+
+  ros::MultiThreadedSpinner spinner(2);
+  spinner.spin();
 
   return 0;
 }

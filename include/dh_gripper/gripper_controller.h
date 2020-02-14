@@ -13,6 +13,7 @@
 #include <ros/console.h>
 #include <actionlib/server/simple_action_server.h>
 #include <serial/serial.h>
+#include <sensor_msgs/JointState.h>
 #include <control_msgs/GripperCommandAction.h>
 
 #include "dh_gripper/definition.h"
@@ -30,6 +31,9 @@ const double MIN_EFFORT_LIMIT = 15, MAX_EFFORT_LIMIT = 100;
 class GripperController {
 private:
 
+  ros::NodeHandle node;
+
+
   //connect mode
   int connect_mode;
 
@@ -42,14 +46,18 @@ private:
   /// controllers for the individual servo motors
   std::string hand_port_name_;
 
+
   /// DH Hand Model
   std::string gripper_model;
 
   // Wait data time;
   double data_timeout;
 
+  //
+  ros::Timer timer;
 
-  ros::NodeHandle node;
+  // Topics
+  ros::Publisher joint_state_pub;
 
   // Action Server
   actionlib::SimpleActionServer<control_msgs::GripperCommandAction> gripper_command_asrv;
@@ -60,17 +68,34 @@ private:
   std::vector<bool> stalled;
   std::vector<bool> reached_goal;
 
-
 public:
+
   GripperController(const ros::NodeHandle &node = ros::NodeHandle(), const std::string &action_ns = "gripper_command");
+
   ~GripperController();
+
+  DH_Driver driver;
 
   std::mutex R_mutex;
   std::mutex W_mutex;
 
-  DH_Driver driver;
-
   DH_Robotics::DH_DataStream readtempdata;
+
+
+  bool init();
+
+
+  bool start();
+
+
+  /**
+   * @brief service callback function
+   *
+   * @param req
+   * @param res
+   * @return true on command is vaild;otherwise return false
+   */
+  void timer_cb(const ros::TimerEvent &ev);
 
 
   /**
@@ -91,7 +116,7 @@ public:
    * @brief Initialize the Hand
    *
    */
-  bool init();
+  bool init_device();
 
   /**
    * @brief Close DH_Hand communication
@@ -103,11 +128,12 @@ public:
   /**
    * @brief Move individual joint
    *
-   * @param MotorID
+   * @param motor_id
    * @param target_position
+   * @param feedback
    * @return true on success; otherwise returns false.
    */
-  bool moveHand(int motor_id, int target_position, bool &feedback);
+  bool actuate_gripper(int motor_id, int target_position, bool &feedback);
 
   /**
    * @brief Get feedback of individual joint
@@ -157,21 +183,14 @@ public:
    * @return true on recevied success;
    * @return false on recevied overtime;
    */
-  bool read_data(uint8_t waitconunt = 5);
+  bool read_data(uint8_t wait_count = 5);
+
+  bool check_data(uint8_t *data);
 
   bool ensure_set_command(std::vector<uint8_t> data);
   bool ensure_get_command(std::vector<uint8_t> data);
-  bool ensure_run_end(std::vector<uint8_t> data);
-  bool chacke_data(uint8_t *data);
 
-  /**
-   * @brief service callback function
-   *
-   * @param req
-   * @param res
-   * @return true on command is vaild;otherwise return false
-   */
-  bool jointValueCB(dh_gripper::GripperState::Request  &req, dh_gripper::GripperState::Response &res);
+  bool ensure_run_end(std::vector<uint8_t> data);
 
 };
 
