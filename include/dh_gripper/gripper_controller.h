@@ -9,18 +9,23 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+// roscpp
 #include <ros/ros.h>
 #include <ros/console.h>
+// actionlib
 #include <actionlib/server/simple_action_server.h>
-#include <serial/serial.h>
+// sensor_msgs
 #include <sensor_msgs/JointState.h>
+// control_msgs
 #include <control_msgs/GripperCommandAction.h>
+// serial
+#include <serial/serial.h>
+
+// Boost
+#include <boost/bind.hpp>
 
 #include "dh_gripper/definition.h"
 #include "dh_gripper/gripper_driver.h"
-#include "dh_gripper/GripperState.h"
-// Boost
-#include <boost/bind.hpp>
 
 
 namespace dh {
@@ -62,17 +67,12 @@ private:
   // Action Server
   actionlib::SimpleActionServer<control_msgs::GripperCommandAction> gripper_command_asrv;
 
+
   std::vector<double> joint_pos;
   std::vector<double> joint_eff;
-
   std::vector<bool> stalled;
   std::vector<bool> reached_goal;
 
-public:
-
-  GripperController(const ros::NodeHandle &node = ros::NodeHandle(), const std::string &action_ns = "gripper_command");
-
-  ~GripperController();
 
   DH_Driver driver;
 
@@ -80,6 +80,12 @@ public:
   std::mutex W_mutex;
 
   DH_Robotics::DH_DataStream readtempdata;
+
+public:
+
+  GripperController(const ros::NodeHandle &node = ros::NodeHandle(), const std::string &action_ns = "gripper_command");
+
+  ~GripperController();
 
 
   bool init();
