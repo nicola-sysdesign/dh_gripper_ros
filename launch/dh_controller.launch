@@ -1,11 +1,12 @@
 <launch>
-  <env name="ROSCONSOLE_CONFIG_FILE" value="$(find dh_gripper)/rosconsole.conf"/>
-
+  <!-- -->
+  <!-- <env name="ROSCONSOLE_CONFIG_FILE" value="$(find dh_gripper)/rosconsole.conf"/> -->
+  <!-- -->
   <arg name="gripper" default="AG-95"/>
   <arg name="gripper_path" value="$(eval find('dh_gripper') + '/config/' + arg('gripper') + '.yaml')"/>
-
+  <!-- -->
   <arg name="usb" default="/dev/DH_hand"/>
-
+  <!-- -->
   <arg name="ip" default="192.168.1.29"/>
   <arg name="port" default="8888"/>
 

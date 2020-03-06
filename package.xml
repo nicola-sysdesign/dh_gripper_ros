@@ -20,6 +20,8 @@
   <depend>sensor_msgs</depend>
   <depend>control_msgs</depend>
   <depend>message_generation</depend>
+  <!-- System Dependencies -->
+  <depend>boost</depend>
 
   <exec_depend>message_runtime</exec_depend>
 

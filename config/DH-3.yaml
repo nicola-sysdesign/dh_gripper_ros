@@ -5,5 +5,5 @@
 model: 'DH-3'
 
 joints:
-  - finger1_joint
-  - finger2_joint
+  - finger_1_joint
+  - finger_2_joint
