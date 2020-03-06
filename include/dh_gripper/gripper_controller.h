@@ -31,7 +31,7 @@
 namespace dh {
 
 const double MIN_POSITION_LIMIT = 0, MAX_POSITION_LIMIT = 100;
-const double MIN_EFFORT_LIMIT = 15, MAX_EFFORT_LIMIT = 100;
+const double MIN_EFFORT_LIMIT = 20, MAX_EFFORT_LIMIT = 100;
 
 class GripperController {
 private:
