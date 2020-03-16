@@ -69,7 +69,7 @@ bool dh::GripperController::init()
   joint_state_pub = node.advertise<sensor_msgs::JointState>("joint_states", 10);
 
   ros::Duration period(1.0);
-  timer = node.createTimer(period, &dh::GripperController::timer_cb, this);
+  // timer = node.createTimer(period, &dh::GripperController::timer_cb, this);  TO FIX
 
   ROS_INFO("Gripper %s initialized successfully.", gripper_model.c_str());
   return true;
@@ -419,13 +419,13 @@ bool dh::GripperController::getGrippingPosition(int motor_id, int &position)
   {
     if (!write_data(driver.getStream()))
     {
-      ROS_WARN("getMotorForce write data error");
+      ROS_WARN("getMotorPosition write data error");
       continue;
     }
 
     if (!ensure_get_command(driver.getStream()))
     {
-      ROS_WARN("getMotorForce wait timeout");
+      ROS_WARN("getMotorPosition ensure_get_command wait response timeout");
       continue;
     }
 
