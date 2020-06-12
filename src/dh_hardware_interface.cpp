@@ -10,8 +10,8 @@
 #include "dh_gripper/hardware_interface/AG95_hardware_interface.h"
 
 
-int main (int argc, char* argv[]) {
-
+int main (int argc, char* argv[])
+{
   ros::init(argc, argv, "dh_hardware_interface");
 
   // Node
@@ -23,29 +23,29 @@ int main (int argc, char* argv[]) {
   auto tcp_timeout = node.param<double>("tcp/timeout", 5.0);
 
 
-  ros::AsyncSpinner spinner(0);
+  ros::AsyncSpinner spinner(2);
   spinner.start();
 
 
   // Hardware Interface
-  dh::AG95_HardwareInterface hardware_interface(node);
+  dh::AG95_HW gripper_hw(node);
 
   // Controller Manager
   controller_manager::ControllerManager controller_manager(&hardware_interface);
 
-
+  // Loop
   ros::Time prev_time = ros::Time::now();
   ros::Rate rate(hardware_interface.loop_hz);
-  // Loop
-  while (ros::ok()) {
+  while (ros::ok())
+  {
     rate.sleep();
     const ros::Time time = ros::Time::now();
     const ros::Duration period = time - prev_time;
     //ROS_DEBUG_THROTTLE(0, "Period: %fs", period.toSec());
 
-    hardware_interface.read();
+    gripper_hw.read();
     controller_manager.update(time, period);
-    hardware_interface.write();
+    gripper_hw.write();
 
     prev_time = time;
   }
