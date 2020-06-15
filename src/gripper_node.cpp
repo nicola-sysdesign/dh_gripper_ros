@@ -27,7 +27,7 @@ int main(int argc, char* argv[])
     return 1;
   }
 
-  ros::MultiThreadedSpinner spinner(4);
+  ros::MultiThreadedSpinner spinner(1);
   spinner.spin();
 
   return 0;

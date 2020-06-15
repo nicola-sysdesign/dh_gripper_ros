@@ -1,4 +1,4 @@
-#include "dh_gripper/gripper_driver.h"
+#include "dh_gripper/dh_driver.h"
 
 
 dh::DH_Driver::DH_Driver()

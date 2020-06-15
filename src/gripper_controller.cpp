@@ -13,6 +13,7 @@ Copyright @ DH-Robotics Ltd.
 
 dh::GripperController::GripperController(const ros::NodeHandle &node, const std::string &action_ns) :
   node(node),
+  data_timeout(0.05),
   gripper_command_asrv(node, action_ns, boost::bind(&dh::GripperController::execute_cb, this, _1), false)
 {
 
@@ -27,9 +28,7 @@ dh::GripperController::~GripperController()
 
 bool dh::GripperController::init()
 {
-  // Parameters
   node.param<std::string>("gripper/model", gripper_model, "AG-95");
-  node.param<double>("data_timeout", data_timeout, 0.5);
 
   //
   if (node.getParam("usb/port", usb_port))
@@ -38,7 +37,7 @@ bool dh::GripperController::init()
 
     if (!usb_connect(usb_port))
     {
-      ROS_FATAL("Failed to connect to %s", gripper_model.c_str());
+      ROS_FATAL("Failed to connect to %s", usb_port.c_str());
       return false;
     }
   }
@@ -46,32 +45,29 @@ bool dh::GripperController::init()
   {
     connect_mode = 2;
 
-    auto ip = node.param<std::string>("tcp/ip", "192.168.1.29");
+    auto host = node.param<std::string>("tcp/host", "192.168.1.29");
     auto port = node.param<int>("tcp/port", 8888);
 
-    if (!tcp_connect(ip, port))
+    if (!tcp_connect(host, port))
     {
-      ROS_FATAL("Failed to connect to %s", gripper_model.c_str());
+      ROS_FATAL("Failed to connect to %s:%d", host.c_str(), port);
       return false;
     }
   }
 
   if (!init_device())
   {
-    ROS_FATAL("Failed to initialize Gripper %s", gripper_model.c_str());
+    ROS_FATAL("Failed to initialize DH %s", gripper_model.c_str());
     return false;
   }
-
-  //
-  double freq = node.param<double>("publish_frequency", 1.0);
 
   //
   joint_state_pub = node.advertise<sensor_msgs::JointState>("joint_states", 10);
 
   ros::Duration period(1.0);
-  // timer = node.createTimer(period, &dh::GripperController::timer_cb, this);  TO FIX
+  timer = node.createTimer(period, &dh::GripperController::timer_cb, this);
 
-  ROS_INFO("Gripper %s initialized successfully.", gripper_model.c_str());
+  ROS_INFO("DH %s initialized successfully.", gripper_model.c_str());
   return true;
 }
 
@@ -99,22 +95,21 @@ void dh::GripperController::timer_cb(const ros::TimerEvent &ev)
 
   if(!getGrippingForce(eff))
   {
-    ROS_WARN_THROTTLE(1.0, "Failed to get gripping force.");
+    ROS_WARN_THROTTLE(1.0, "Failed to get max gripping force.");
     return;
   }
 
-
-  double joint_pos = (0.80 - 0.80 * (pos / 100.0));
-  double joint_eff = eff;
+  double j_pos = (-0.03 + 0.03 * (pos / 100.0));
+  double j_eff = eff;
 
   sensor_msgs::JointState joint_state;
   joint_state.header.stamp = ros::Time::now();
   joint_state.name.resize(1);
-  joint_state.name[0] = "finger_joint";
+  joint_state.name[0] = "AG95_finger_joint";
   joint_state.position.resize(1);
-  joint_state.position[0] = joint_pos;
+  joint_state.position[0] = j_pos;
   joint_state.effort.resize(1);
-  joint_state.effort[0] = joint_eff;
+  joint_state.effort[0] = j_eff;
   joint_state_pub.publish(joint_state);
   return;
 }
@@ -151,14 +146,14 @@ void dh::GripperController::execute_cb(const control_msgs::GripperCommandGoalCon
 
   if (pos_cmd < dh::MIN_POSITION_LIMIT || dh::MAX_POSITION_LIMIT < pos_cmd)
   {
-    ROS_ERROR("command position: %.1f, out of range.", pos_cmd);
+    ROS_ERROR("Gripper Command 'position' = %.1f, out of range.", pos_cmd);
     gripper_command_asrv.setAborted(result);
     return;
   }
 
   if (eff_cmd < dh::MIN_EFFORT_LIMIT || eff_cmd > dh::MAX_EFFORT_LIMIT)
   {
-    ROS_ERROR("command max_effort: %.1f, out of range.", eff_cmd);
+    ROS_ERROR("Gripper Command 'max_effort' = %.1f, out of range.", eff_cmd);
     control_msgs::GripperCommandResult result;
     gripper_command_asrv.setAborted(result);
     return;
@@ -186,7 +181,7 @@ void dh::GripperController::execute_cb(const control_msgs::GripperCommandGoalCon
   gripper_command_asrv.publishFeedback(feedback);
 
   // wait
-  ros::Duration(data_timeout).sleep();
+  data_timeout.sleep();
 
 
   getGrippingPosition(motor_id, pos);
@@ -276,11 +271,10 @@ bool dh::GripperController::init_device()
       continue;
     }
 
-    ROS_DEBUG("init ensure_set_command");
     auto wait_iter = 0;
     do
     {
-      ros::Duration(data_timeout).sleep();
+      data_timeout.sleep();
 
       if (!ensure_get_command(driver.getStream()))
       {
@@ -641,7 +635,8 @@ bool dh::GripperController::read_data(uint8_t wait_count)
 
   do
   {
-    ros::Duration(data_timeout).sleep();
+    data_timeout.sleep();
+
     if (connect_mode == 1)
     {
       uint8_t count = serial.available() / 14;
@@ -690,7 +685,7 @@ bool dh::GripperController::read_data(uint8_t wait_count)
     {
       if (check_data(buf))
       {
-        // ROS_INFO("Read: %X %X %X %X %X %X %X %X %X %X %X %X %X %X", buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8], buf[9], buf[10], buf[11], buf[12], buf[13]);
+        ROS_DEBUG("Read: %X %X %X %X %X %X %X %X %X %X %X %X %X %X", buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8], buf[9], buf[10], buf[11], buf[12], buf[13]);
         ret = true;
       }
     }

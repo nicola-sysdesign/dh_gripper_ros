@@ -81,7 +81,7 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(dh_controller
-src/gripper_node.cpp src/gripper_controller.cpp src/gripper_driver.cpp src/DH_datastream.cpp)
+src/gripper_node.cpp src/gripper_controller.cpp src/dh_driver.cpp src/DH_datastream.cpp)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above

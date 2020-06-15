@@ -25,7 +25,7 @@
 #include <boost/bind.hpp>
 
 #include "dh_gripper/definition.h"
-#include "dh_gripper/gripper_driver.h"
+#include "dh_gripper/dh_driver.h"
 
 
 namespace dh {
@@ -53,7 +53,7 @@ private:
   //
   std::string tcp_ip; int tcp_port;
   //
-  double data_timeout;
+  ros::Duration data_timeout;
 
   //
   ros::Timer timer;
