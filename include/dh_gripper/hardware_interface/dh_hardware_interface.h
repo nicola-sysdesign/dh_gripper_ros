@@ -12,6 +12,10 @@
 // roscpp
 #include <ros/ros.h>
 #include <ros/console.h>
+// transmission_interface
+#include <transmission_interface/transmission.h>
+#include <transmission_interface/simple_transmission.h>
+#include <transmission_interface/transmission_interface.h>
 // hardware_interface
 #include <hardware_interface/joint_state_interface.h>
 #include <hardware_interface/joint_command_interface.h>
@@ -33,7 +37,7 @@ namespace dh {
 const double MIN_POSITION_LIMIT = 0, MAX_POSITION_LIMIT = 100;
 const double MIN_EFFORT_LIMIT = 20, MAX_EFFORT_LIMIT = 100;
 
-class AG95_HW : public hardware_interface::RobotHW {
+class GripperHW : public hardware_interface::RobotHW {
 
   int connect_mode = 0;
 
@@ -444,9 +448,19 @@ protected:
 
   ros::NodeHandle node;
 
-  hardware_interface::JointStateInterface joint_state_interface;
-  hardware_interface::PositionJointInterface pos_joint_interface;
-  hardware_interface::EffortJointInterface eff_joint_interface;
+  transmission_interface::SimpleTransmission finger_transmission;
+  transmission_interface::ActuatorToJointStateInterface act_to_jnt_state_interface;
+  transmission_interface::JointToActuatorPositionInterface jnt_to_act_pos_interface;
+
+  transmission_interface::ActuatorData a_data, a_data_cmd;
+  transmission_interface::JointData j_data, j_data_cmd;
+
+  hardware_interface::JointStateInterface jnt_state_interface;
+  hardware_interface::PositionJointInterface pos_jnt_interface;
+
+  std::vector<double> a_pos, a_pos_cmd;
+  std::vector<double> a_vel, a_vel_cmd;
+  std::vector<double> a_eff, a_eff_cmd;
 
   std::vector<double> j_pos, j_pos_cmd;
   std::vector<double> j_vel, j_vel_cmd;
@@ -460,9 +474,10 @@ public:
   std::vector<std::string> joints;
 
 
-  AG95_HW(const ros::NodeHandle &node = ros::NodeHandle()) :
+  GripperHW(const ros::NodeHandle &node = ros::NodeHandle()) :
     node(node),
-    data_timeout(0.2)
+    data_timeout(0.2),
+    finger_transmission(-100/0.03)
   {
     if (!ros::param::get("/AG95/hardware_interface/loop_hz", loop_hz))
     {
@@ -475,25 +490,49 @@ public:
 
     int n_joints = joints.size();
 
+    a_pos.resize(n_joints, 0.0); a_pos_cmd.resize(n_joints, 0.0);
+    a_vel.resize(n_joints, 0.0); a_vel_cmd.resize(n_joints, 0.0);
+    a_eff.resize(n_joints, 0.0); a_eff_cmd.resize(n_joints, 0.0);
+
     j_pos.resize(n_joints, 0.0); j_pos_cmd.resize(n_joints, 0.0);
     j_vel.resize(n_joints, 0.0); j_vel_cmd.resize(n_joints, 0.0);
     j_eff.resize(n_joints, 0.0); j_eff_cmd.resize(n_joints, 0.0);
 
     for (int i = 0; i < n_joints; i++)
     {
-      hardware_interface::JointStateHandle joint_state_handle(joints[i], &j_pos[i], &j_vel[i], &j_eff[i]);
-      joint_state_interface.registerHandle(joint_state_handle);
+      a_data.position.push_back(&a_pos[i]);
+      a_data.velocity.push_back(&a_vel[i]);
+      a_data.effort.push_back(&a_eff[i]);
 
-      hardware_interface::JointHandle pos_joint_handle(joint_state_handle, &j_pos_cmd[i]);
-      pos_joint_interface.registerHandle(pos_joint_handle);
+      a_data_cmd.position.push_back(&a_pos_cmd[i]);
+      a_data_cmd.velocity.push_back(&a_vel_cmd[i]);
+      a_data_cmd.effort.push_back(&a_eff_cmd[i]);
 
-      hardware_interface::JointHandle eff_joint_handle(joint_state_handle, &j_eff_cmd[i]);
-      eff_joint_interface.registerHandle(eff_joint_handle);
+      j_data.position.push_back(&j_pos[i]);
+      j_data.velocity.push_back(&j_vel[i]);
+      j_data.effort.push_back(&j_eff[i]);
+
+      j_data_cmd.position.push_back(&j_pos_cmd[i]);
+      j_data_cmd.velocity.push_back(&j_vel_cmd[i]);
+      j_data_cmd.effort.push_back(&j_eff_cmd[i]);
+
+
+      transmission_interface::ActuatorToJointStateHandle act_to_jnt_state_handle("finger_trans", &finger_transmission, a_data, j_data);
+      act_to_jnt_state_interface.registerHandle(act_to_jnt_state_handle);
+
+      transmission_interface::JointToActuatorPositionHandle jnt_to_act_pos_handle("finger_trans", &finger_transmission, a_data_cmd, j_data_cmd);
+      jnt_to_act_pos_interface.registerHandle(jnt_to_act_pos_handle);
+
+
+      hardware_interface::JointStateHandle jnt_state_handle(joints[i], &j_pos[i], &j_vel[i], &j_eff[i]);
+      jnt_state_interface.registerHandle(jnt_state_handle);
+
+      hardware_interface::JointHandle pos_jnt_handle(jnt_state_handle, &j_pos_cmd[i]);
+      pos_jnt_interface.registerHandle(pos_jnt_handle);
     }
 
-    registerInterface(&joint_state_interface);
-    registerInterface(&pos_joint_interface);
-    registerInterface(&eff_joint_interface);
+    registerInterface(&jnt_state_interface);
+    registerInterface(&pos_jnt_interface);
   }
 
 
@@ -595,6 +634,7 @@ public:
 
   void read(const ros::Time &time, const ros::Duration &period)
   {
+    //
     for (int i = 0; i < joints.size(); i++)
     {
       int pos;
@@ -602,33 +642,48 @@ public:
 
       if (!getGrippingPosition(1+i, pos))
       {
-        ROS_WARN("Failed to get gripping position.");
+        ROS_WARN("Failed to get Gripping Position.");
         return;
       }
       if (!getGrippingForce(eff))
       {
-        ROS_WARN("Failed to get gripping force.");
+        ROS_WARN("Failed to get Max Gripping Force.");
         return;
       }
 
-      j_pos[i] = (0.03 - 0.03 * (pos / 100.0));
-      j_eff[i] = eff;
+      a_pos[i] = pos;
+      a_eff[i] = eff;
+
+      ROS_DEBUG("Gripping Position: %d", pos);
+      ROS_DEBUG("Max Gripping Effort: %d", eff);
     }
+
+    //
+    act_to_jnt_state_interface.propagate();
   }
 
   void write(const ros::Time &time, const ros::Duration &period)
   {
-    // getGrippingPosition(motor_id, pos);
-    // getGrippingForce(eff);
+    //
+    jnt_to_act_pos_interface.propagate();
 
+    //
     for (int i = 0; i < joints.size(); i++)
     {
-      setGrippingForce(30.0);
+      int pos_cmd = a_pos_cmd[i];
+      int eff_cmd = 30.0;
+
+      if (!setGrippingForce(eff_cmd))
+      {
+        ROS_WARN("Failed to set Max Gripping Force.");
+        return;
+      }
 
       bool not_stalled;
-      if (!actuate_gripper(1+i, j_pos_cmd[i], not_stalled))
+      if (!actuate_gripper(1+i, pos_cmd, not_stalled))
       {
         ROS_WARN("Failed to actuate the Gripper.");
+        return;
       }
     }
   }

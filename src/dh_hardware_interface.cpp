@@ -7,8 +7,8 @@
 // controller_manager
 #include <controller_manager/controller_manager.h>
 
-// dh_gripper
-#include "dh_gripper/hardware_interface/AG95_hardware_interface.h"
+// dh_hardware_interface
+#include "dh_gripper/hardware_interface/dh_hardware_interface.h"
 
 
 int main (int argc, char* argv[])
@@ -29,7 +29,7 @@ int main (int argc, char* argv[])
 
 
   // Hardware Interface
-  dh::AG95_HW gripper_hw(node);
+  dh::GripperHW gripper_hw(node);
   if (!gripper_hw.init())
   {
     ROS_FATAL("Failed to initializze Hardware Interface!");

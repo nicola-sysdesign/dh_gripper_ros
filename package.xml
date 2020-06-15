@@ -17,5 +17,8 @@
   <depend>serial</depend>
   <!-- System Dependencies -->
   <depend>boost</depend>
+  <!-- -->
+  <exec_depend>joint_state_controller</exec_depend>
+  <exec_depend>gripper_action_controller</exec_depend>
 
 </package>
