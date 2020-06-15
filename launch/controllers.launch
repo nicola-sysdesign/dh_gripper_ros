@@ -1,0 +1,23 @@
+<launch>
+  <arg name="debug" default="false"/>
+
+  <env if="$(arg debug)" name="ROSCONSOLE_CONFIG_FILE" value="$(find dh_hardware_interface)/rosconsole.conf"/>
+
+  <arg name="host" default="192.168.1.29"/>
+  <arg name="port" default="8888"/>
+
+  <rosparam command="load" file="$(find dh_hardware_interface)/config/hardware.yaml"/>
+  <rosparam command="load" file="$(find dh_hardware_interface)/config/controllers.yaml"/>
+
+  <!-- Driver -->
+  <node name="dh_driver" pkg="dh_hardware_interface" type="dh_hardware_interface" output="screen">
+    <param name="tcp/host" value="$(arg host)"/>
+    <param name="tcp/port" value="$(arg port)"/>
+  </node>
+
+  <!-- Spawn Controllers -->
+  <node ns="dh_driver" name="controller_spawner" pkg="controller_manager" type="spawner" output="screen"
+    args="/AG95/controller/state
+          /AG95/controller/position/finger_joint"/>
+
+</launch>

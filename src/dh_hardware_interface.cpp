@@ -6,6 +6,7 @@
 #include <ros/console.h>
 // controller_manager
 #include <controller_manager/controller_manager.h>
+
 // dh_gripper
 #include "dh_gripper/hardware_interface/AG95_hardware_interface.h"
 
@@ -29,13 +30,19 @@ int main (int argc, char* argv[])
 
   // Hardware Interface
   dh::AG95_HW gripper_hw(node);
+  if (!gripper_hw.init())
+  {
+    ROS_FATAL("Failed to initializze Hardware Interface!");
+    return 1;
+  }
 
   // Controller Manager
-  controller_manager::ControllerManager controller_manager(&hardware_interface);
+  controller_manager::ControllerManager controller_manager(&gripper_hw, node);
 
   // Loop
   ros::Time prev_time = ros::Time::now();
-  ros::Rate rate(hardware_interface.loop_hz);
+  ros::Rate rate(gripper_hw.loop_hz);
+
   while (ros::ok())
   {
     rate.sleep();
@@ -43,13 +50,15 @@ int main (int argc, char* argv[])
     const ros::Duration period = time - prev_time;
     //ROS_DEBUG_THROTTLE(0, "Period: %fs", period.toSec());
 
-    gripper_hw.read();
+    gripper_hw.read(time, period);
     controller_manager.update(time, period);
-    gripper_hw.write();
+    gripper_hw.write(time, period);
 
     prev_time = time;
   }
 
-  hardware_interface.close();
+  gripper_hw.close_device();
+  ROS_INFO("Connection closed.");
+
   return 0;
 }

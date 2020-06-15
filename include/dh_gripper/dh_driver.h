@@ -1,11 +1,3 @@
-/**
- *
- * auther: Jie Sun
- * email: jie.sun@kcl.ac.uk
- *
- * date: 2018 April 23
-*/
-
 #ifndef DH_GRIPPER_DRIVER_H
 #define DH_GRIPPER_DRIVER_H
 #include <cstdint>

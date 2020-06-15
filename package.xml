@@ -1,28 +1,21 @@
 <package format="2">
-  <name>dh_hand_driver</name>
+  <name>dh_hardware_interface</name>
   <version>0.0.0</version>
   <description>
-    The dh_hand_driver package
+    The dh_hardware_interface package
   </description>
   <license>TODO</license>
 
-  <maintainer email="jiesun@todo.todo">jiesun</maintainer>
-
+  <maintainer email="nicola@sysdesign.it">Nicola Conti</maintainer>
 
   <buildtool_depend>catkin</buildtool_depend>
   <!-- Catkin Dependencies -->
   <depend>roscpp</depend>
-  <depend>rospy</depend>
   <depend>std_msgs</depend>
-  <depend>actionlib</depend>
-  <depend>actionlib_msgs</depend>
   <depend>hardware_interface</depend>
   <depend>controller_manager</depend>
   <depend>serial</depend>
-  <depend>message_generation</depend>
   <!-- System Dependencies -->
   <depend>boost</depend>
-  <!-- Execution Dependencies -->
-  <exec_depend>message_runtime</exec_depend>
 
 </package>
