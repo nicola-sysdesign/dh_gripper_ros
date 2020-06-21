@@ -39,17 +39,16 @@ const double MIN_EFFORT_LIMIT = 20, MAX_EFFORT_LIMIT = 100;
 
 class GripperHW : public hardware_interface::RobotHW {
 
+  int n_joints = 0;
+
   int connect_mode = 0;
 
   serial::Serial serial;
 
   int sockfd;
-
   ros::Duration data_timeout;
 
-
   dh::DH_Driver driver;
-
   DH_Robotics::DH_DataStream readtempdata;
 
 
@@ -470,25 +469,19 @@ protected:
   std::vector<double> joint_upper_limits;
 
 public:
-  double loop_hz;
-  std::vector<std::string> joints;
-
 
   GripperHW(const ros::NodeHandle &node = ros::NodeHandle()) :
     node(node),
     data_timeout(0.2),
     finger_transmission(-100/0.03)
   {
-    if (!ros::param::get("/AG95/hardware_interface/loop_hz", loop_hz))
-    {
-      ROS_WARN("Failed to retrieve 'loop_hz' parameter from Parameter Server.");
-    }
-    if (!ros::param::get("/AG95/hardware_interface/joints", joints))
-    {
-      ROS_WARN("Failed to retrieve 'joints' parameter from Parameter Server.");
-    }
 
-    int n_joints = joints.size();
+  }
+
+
+  bool init(const std::vector<std::string> &joints)
+  {
+    n_joints = joints.size();
 
     a_pos.resize(n_joints, 0.0); a_pos_cmd.resize(n_joints, 0.0);
     a_vel.resize(n_joints, 0.0); a_vel_cmd.resize(n_joints, 0.0);
@@ -533,17 +526,16 @@ public:
 
     registerInterface(&jnt_state_interface);
     registerInterface(&pos_jnt_interface);
+    return true;
   }
 
 
-  bool init()
+  bool start(const std::string &host, unsigned int port)
   {
-    //
     std::string usb_port;
     if (node.getParam("usb/port", usb_port))
     {
       connect_mode = 1;
-
       if (!usb_connect(usb_port))
       {
         ROS_WARN("Failed to connect to %s", usb_port.c_str());
@@ -553,10 +545,6 @@ public:
     else
     {
       connect_mode = 2;
-
-      auto host = node.param<std::string>("tcp/host", "192.168.1.29");
-      auto port = node.param<int>("tcp/port", 8888);
-
       if (!tcp_connect(host, port))
       {
         ROS_WARN("Failed to connect to %s:%d", host.c_str(), port);
@@ -566,11 +554,11 @@ public:
 
     if (!init_device())
     {
-      ROS_FATAL("Failed to initialize Gripper %s", "AG-95");
+      ROS_FATAL("Failed to initialize %s", "DH AG-95");
       return false;
     }
 
-    ROS_INFO("AG-95 Hardware Interface initialized successfully.");
+    ROS_INFO("Hardware Interface started successfully.");
     return true;
   }
 
@@ -606,11 +594,11 @@ public:
     // socket
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
-      ROS_FATAL("Socket failure!");
+      ROS_FATAL("TCP Socket failure!");
       return false;
     }
 
-    ROS_DEBUG("Socket ID: %d", sockfd);
+    ROS_DEBUG("TCP Socket ID: %d", sockfd);
 
     // sockaddr_in
     struct sockaddr_in serv_addr;
@@ -634,8 +622,7 @@ public:
 
   void read(const ros::Time &time, const ros::Duration &period)
   {
-    //
-    for (int i = 0; i < joints.size(); i++)
+    for (int i = 0; i < n_joints; i++)
     {
       int pos;
       int eff;
@@ -655,20 +642,18 @@ public:
       a_eff[i] = eff;
 
       ROS_DEBUG("Gripping Position: %d", pos);
-      ROS_DEBUG("Max Gripping Effort: %d", eff);
+      ROS_DEBUG("Max Gripping Force: %d", eff);
     }
 
-    //
     act_to_jnt_state_interface.propagate();
   }
 
+
   void write(const ros::Time &time, const ros::Duration &period)
   {
-    //
     jnt_to_act_pos_interface.propagate();
 
-    //
-    for (int i = 0; i < joints.size(); i++)
+    for (int i = 0; i < n_joints; i++)
     {
       int pos_cmd = a_pos_cmd[i];
       int eff_cmd = 30.0;
@@ -688,10 +673,8 @@ public:
     }
   }
 
-  /**
-   * Stop Communication
-   */
-  void close_device()
+
+  bool stop()
   {
     if (connect_mode == 1)
     {
@@ -701,6 +684,9 @@ public:
     {
       close(sockfd);
     }
+
+    ROS_INFO("Hardware Interface stopped.");
+    return true;
   }
 
 };

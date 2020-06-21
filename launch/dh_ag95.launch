@@ -10,14 +10,14 @@
   <rosparam command="load" file="$(find dh_hardware_interface)/config/controllers.yaml"/>
 
   <!-- Driver -->
-  <node name="dh_driver" pkg="dh_hardware_interface" type="dh_hardware_interface" output="screen">
+  <node name="dh_ag95" pkg="dh_hardware_interface" type="dh_hardware_interface_node" output="screen">
     <param name="tcp/host" value="$(arg host)"/>
     <param name="tcp/port" value="$(arg port)"/>
   </node>
 
   <!-- Spawn Controllers -->
-  <node ns="dh_driver" name="controller_spawner" pkg="controller_manager" type="spawner" output="screen"
-    args="/AG95/controller/state
-          /AG95/controller/position/finger_joint"/>
+  <node ns="dh_ag95" name="controller_spawner" pkg="controller_manager" type="spawner"
+    args="/dh_ag95/controller/state
+          /dh_ag95/controller/position/finger_joint" />
 
 </launch>

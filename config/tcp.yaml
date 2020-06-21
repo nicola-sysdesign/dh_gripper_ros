@@ -2,9 +2,8 @@
 ## TCP ##
 #########
 
-ip_address: '192.168.1.29'
-  #
+host: 192.168.1.29
+
 port: 8888
-  #
+
 timeout: 5.0
-  # timeout in seconds

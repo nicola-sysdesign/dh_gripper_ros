@@ -9,7 +9,6 @@ add_compile_options(-std=c++11)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   roscpp
-  rospy
   std_msgs
   hardware_interface
   controller_manager
@@ -57,6 +56,8 @@ catkin_package(
     hardware_interface
     controller_manager
     serial
+    joint_state_controller
+    gripper_action_controller
   DEPENDS Boost
 )
 
@@ -75,11 +76,15 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(dh_hardware_interface src/dh_hardware_interface.cpp src/dh_driver.cpp
+add_executable(dh_hardware_interface_node
+  src/dh_hardware_interface_node.cpp
+  src/dh_driver.cpp
   src/DH_datastream.cpp)
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(dh_hardware_interface ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+target_link_libraries(dh_hardware_interface_node
+  ${catkin_LIBRARIES}
+  ${Boost_LIBRARIES})
 
 #############
 ## Install ##
@@ -97,7 +102,7 @@ target_link_libraries(dh_hardware_interface ${catkin_LIBRARIES} ${Boost_LIBRARIE
 
 ## Mark executables for installation
 install(
-  TARGETS dh_hardware_interface
+  TARGETS dh_hardware_interface_node
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

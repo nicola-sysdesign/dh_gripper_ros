@@ -1,7 +1,7 @@
 #################
 ## Controllers ##
 #################
-AG95:
+dh_ag95:
   controller:
     state:
       type: joint_state_controller/JointStateController
@@ -9,4 +9,6 @@ AG95:
     position:
       finger_joint:
         type: position_controllers/GripperActionController
-        joint: AG95_finger_joint
+        joint: ag95_finger_joint
+        goal_tolerance: 0.001
+        stall_timeout: 1.0

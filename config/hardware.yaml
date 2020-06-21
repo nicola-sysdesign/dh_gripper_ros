@@ -1,8 +1,8 @@
 ########################
 ## Hardware Interface ##
 ########################
-AG95:
+dh_ag95:
   hardware_interface:
-    loop_hz: 1
+    loop_hz: 2
     joints:
-      - AG95_finger_joint
+      - ag95_finger_joint

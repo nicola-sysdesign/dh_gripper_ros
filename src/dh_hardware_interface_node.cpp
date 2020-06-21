@@ -19,30 +19,47 @@ int main (int argc, char* argv[])
   ros::NodeHandle node("~");
 
   // Parameters
-  auto tcp_ip = node.param<std::string>("tcp/ip", "192.168.1.29");
+  auto tcp_host = node.param<std::string>("tcp/host", "192.168.1.29");
   auto tcp_port = node.param<int>("tcp/port", 8888);
   auto tcp_timeout = node.param<double>("tcp/timeout", 5.0);
+
+  double loop_hz;
+  if (!node.getParam("hardware_interface/loop_hz", loop_hz))
+  {
+    std::string param_name = node.resolveName("hardware_interface/loop_hz");
+    ROS_ERROR("Failed to retrieve '%s' parameter.", param_name.c_str());
+  }
+
+  std::vector<std::string> joints;
+  if (!node.getParam("hardware_interface/joints", joints))
+  {
+    std::string param_name = node.resolveName("hardware_interface/joints");
+    ROS_ERROR("Failed to retrieve '%s' parameter.", param_name.c_str());
+  }
 
 
   ros::AsyncSpinner spinner(2);
   spinner.start();
 
-
   // Hardware Interface
   dh::GripperHW gripper_hw(node);
-  if (!gripper_hw.init())
+  if (!gripper_hw.init(joints))
   {
-    ROS_FATAL("Failed to initializze Hardware Interface!");
+    ROS_FATAL("Failed to initialize Hardware Interface!");
     return 1;
   }
 
   // Controller Manager
   controller_manager::ControllerManager controller_manager(&gripper_hw, node);
+  if (!gripper_hw.start(tcp_host, tcp_port))
+  {
+    ROS_FATAL("Failed to start Hardware Interface!");
+    return 1;
+  }
 
   // Loop
   ros::Time prev_time = ros::Time::now();
-  ros::Rate rate(gripper_hw.loop_hz);
-
+  ros::Rate rate(loop_hz);
   while (ros::ok())
   {
     rate.sleep();
@@ -57,8 +74,12 @@ int main (int argc, char* argv[])
     prev_time = time;
   }
 
-  gripper_hw.close_device();
-  ROS_INFO("Connection closed.");
+
+  if (!gripper_hw.stop())
+  {
+    ROS_FATAL("Failed to stop Hardware Interface!");
+    return 1;
+  }
 
   return 0;
 }
