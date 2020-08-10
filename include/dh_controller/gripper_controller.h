@@ -24,8 +24,8 @@
 // Boost
 #include <boost/bind.hpp>
 
-#include "dh_gripper/definition.h"
-#include "dh_gripper/dh_driver.h"
+#include "dh_controller/definition.h"
+#include "dh_controller/dh_driver.h"
 
 
 namespace dh {
@@ -51,6 +51,9 @@ private:
   std::vector<double> j_pos; std::vector<double> j_pos_cmd;
   std::vector<double> j_eff; std::vector<double> j_eff_cmd;
 
+  std::vector<bool> stalled;
+  std::vector<bool> reached_goal;
+
   //
   int connect_mode = 0;
   //
@@ -68,12 +71,6 @@ private:
 
   // Action Server
   actionlib::SimpleActionServer<control_msgs::GripperCommandAction> gripper_command_asrv;
-
-
-  std::vector<double> joint_pos;
-  std::vector<double> joint_eff;
-  std::vector<bool> stalled;
-  std::vector<bool> reached_goal;
 
 
   DH_Driver driver;

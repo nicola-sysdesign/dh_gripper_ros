@@ -4,7 +4,7 @@
 #include <ros/ros.h>
 #include <ros/console.h>
 // dh_gripper
-#include "dh_gripper/gripper_controller.h"
+#include "dh_controller/gripper_controller.h"
 
 
 int main(int argc, char* argv[])

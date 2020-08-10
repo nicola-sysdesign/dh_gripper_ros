@@ -2,7 +2,7 @@
 ## DH-3 ##
 ##########
 
-model: 'DH-3'
+model: DH-3
 
 joints:
   - finger_1_joint

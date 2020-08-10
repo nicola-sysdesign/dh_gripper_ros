@@ -11,8 +11,8 @@
 #include <cstdint>
 #include <vector>
 
-#include "dh_gripper/definition.h"
-#include "dh_gripper/DH_datastream.h"
+#include "dh_controller/definition.h"
+#include "dh_controller/DH_datastream.h"
 
 /**
  * A controller for an individual joint

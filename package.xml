@@ -1,8 +1,8 @@
 <package format="2">
-  <name>dh_gripper</name>
+  <name>dh_controller</name>
   <version>0.0.0</version>
   <description>
-    The dh_gripper package
+    The dh_controller package
   </description>
   <license>BSD</license>
 
@@ -12,7 +12,6 @@
   <buildtool_depend>catkin</buildtool_depend>
   <!-- Catkin Dependencies -->
   <depend>roscpp</depend>
-  <depend>rospy</depend>
   <depend>std_msgs</depend>
   <depend>actionlib</depend>
   <depend>actionlib_msgs</depend>
@@ -22,7 +21,5 @@
   <depend>message_generation</depend>
   <!-- System Dependencies -->
   <depend>boost</depend>
-
-  <exec_depend>message_runtime</exec_depend>
 
 </package>

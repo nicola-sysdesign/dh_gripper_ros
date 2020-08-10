@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(dh_gripper)
+project(dh_controller)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
@@ -9,14 +9,12 @@ add_compile_options(-std=c++11)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   roscpp
-  rospy
   std_msgs
   actionlib
   actionlib_msgs
   serial
   sensor_msgs
   control_msgs
-  message_generation
 )
 
 ## System dependencies are found with CMake's conventions
@@ -54,8 +52,14 @@ find_package(Boost REQUIRED)
 catkin_package(
   INCLUDE_DIRS include
 # LIBRARIES
-  CATKIN_DEPENDS roscpp rospy std_msgs actionlib actionlib_msgs serial
-  sensor_msgs control_msgs message_runtime
+  CATKIN_DEPENDS
+    roscpp
+    std_msgs
+    actionlib
+    actionlib_msgs
+    serial
+    sensor_msgs
+    control_msgs
   DEPENDS Boost
 )
 

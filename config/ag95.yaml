@@ -2,7 +2,7 @@
 ## AG-95 ##
 ###########
 
-model: 'AG-95'
+model: AG-95
 
 joints:
   - finger_joint

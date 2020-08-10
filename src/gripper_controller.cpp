@@ -8,7 +8,7 @@ Version 2.0
 Copyright @ DH-Robotics Ltd.
 **/
 
-#include "dh_gripper/gripper_controller.h"
+#include "dh_controller/gripper_controller.h"
 
 
 dh::GripperController::GripperController(const ros::NodeHandle &node, const std::string &action_ns) :
@@ -103,6 +103,7 @@ bool dh::GripperController::start()
   ROS_INFO("DH %s Controller started successfully.", gripper_model.c_str());
   return true;
 }
+
 
 void dh::GripperController::shutdown()
 {
