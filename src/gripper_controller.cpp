@@ -26,11 +26,17 @@ dh::GripperController::~GripperController()
 }
 
 
-bool dh::GripperController::init()
+bool dh::GripperController::init(const std::string &gripper_model, const std::vector<std::string> &joints)
 {
-  node.param<std::string>("gripper/model", gripper_model, "AG-95");
+  this->gripper_model = gripper_model;
+  this->joints = joints;
 
-  //
+  const int n_joints = joints.size();
+
+  j_pos.resize(n_joints, 0.0); j_pos_cmd.resize(n_joints, 0.0);
+  j_eff.resize(n_joints, 0.0); j_eff_cmd.resize(n_joints, 0.0);
+
+
   if (node.getParam("usb/port", usb_port))
   {
     connect_mode = 1;
@@ -61,11 +67,7 @@ bool dh::GripperController::init()
     return false;
   }
 
-  //
   joint_state_pub = node.advertise<sensor_msgs::JointState>("joint_states", 10);
-
-  ros::Duration period(1.0);
-  timer = node.createTimer(period, &dh::GripperController::timer_cb, this);
 
   ROS_INFO("DH %s initialized successfully.", gripper_model.c_str());
   return true;
@@ -74,6 +76,28 @@ bool dh::GripperController::init()
 
 bool dh::GripperController::start()
 {
+  //
+  int motor_id = 1;
+
+  int pos;
+  int eff;
+
+  getGrippingPosition(motor_id, pos);
+  getGrippingForce(eff);
+
+  for (int i = 0; i < joints.size(); i++)
+  {
+    j_pos[i] = -0.03 + 0.03 * (pos / 100.0);
+    j_eff[i] = eff;
+  }
+
+  sensor_msgs::JointState joint_state;
+  joint_state.header.stamp = ros::Time::now();
+  joint_state.name = joints;
+  joint_state.position = j_pos;
+  joint_state.effort = j_eff;
+  joint_state_pub.publish(joint_state);
+
   //
   gripper_command_asrv.start();
   return true;
@@ -105,19 +129,18 @@ void dh::GripperController::timer_cb(const ros::TimerEvent &ev)
   sensor_msgs::JointState joint_state;
   joint_state.header.stamp = ros::Time::now();
   joint_state.name.resize(1);
-  joint_state.name[0] = "AG95_finger_joint";
+  joint_state.name[0] = "ag95_finger_joint";
   joint_state.position.resize(1);
   joint_state.position[0] = j_pos;
   joint_state.effort.resize(1);
   joint_state.effort[0] = j_eff;
   joint_state_pub.publish(joint_state);
-  return;
 }
 
 
 void dh::GripperController::execute_cb(const control_msgs::GripperCommandGoalConstPtr &goal)
 {
-  ROS_INFO("DH %s: Command Execution", gripper_model.c_str());
+  // ROS_INFO("DH %s: Command Execution", gripper_model.c_str());
 
   int motor_id = 1;
 
@@ -154,7 +177,6 @@ void dh::GripperController::execute_cb(const control_msgs::GripperCommandGoalCon
   if (eff_cmd < dh::MIN_EFFORT_LIMIT || eff_cmd > dh::MAX_EFFORT_LIMIT)
   {
     ROS_ERROR("Gripper Command 'max_effort' = %.1f, out of range.", eff_cmd);
-    control_msgs::GripperCommandResult result;
     gripper_command_asrv.setAborted(result);
     return;
   }
@@ -192,6 +214,21 @@ void dh::GripperController::execute_cb(const control_msgs::GripperCommandGoalCon
   result.stalled = !not_stalled;
   result.reached_goal = (pos == pos_cmd) ? true : false;
   gripper_command_asrv.setSucceeded(result);
+
+
+  // joint state
+  for (int i = 0; i < joints.size(); i++)
+  {
+    j_pos[i] = -0.03 + 0.03 * (pos / 100.0);
+    j_eff[i] = eff;
+  }
+
+  sensor_msgs::JointState joint_state;
+  joint_state.header.stamp = ros::Time::now();
+  joint_state.name = joints;
+  joint_state.position = j_pos;
+  joint_state.effort = j_eff;
+  joint_state_pub.publish(joint_state);
 }
 
 

@@ -46,6 +46,11 @@ private:
   /// DH Hand Model
   std::string gripper_model;
 
+  std::vector<std::string> joints;
+
+  std::vector<double> j_pos; std::vector<double> j_pos_cmd;
+  std::vector<double> j_eff; std::vector<double> j_eff_cmd;
+
   //
   int connect_mode = 0;
   //
@@ -85,7 +90,7 @@ public:
   ~GripperController();
 
 
-  bool init();
+  bool init(const std::string &gripper_model, const std::vector<std::string> &joints);
 
 
   bool start();

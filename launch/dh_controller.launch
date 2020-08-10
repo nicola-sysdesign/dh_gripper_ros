@@ -1,10 +1,9 @@
 <launch>
   <arg name="debug" default="false"/>
+  <env if="$(arg debug)"
+    name="ROSCONSOLE_CONFIG_FILE" value="$(find dh_gripper)/rosconsole.conf"/>
 
-  <env if="$(arg debug)" name="ROSCONSOLE_CONFIG_FILE" value="$(find dh_gripper)/rosconsole.conf"/>
-
-  <arg name="gripper" default="AG-95"/>
-  <arg name="gripper_path" value="$(eval find('dh_gripper') + '/config/' + arg('gripper') + '.yaml')"/>
+  <arg name="gripper_config" default="$(find dh_gripper)/config/AG-95.yaml"/>
 
   <arg name="usb" default="/dev/DH_hand"/>
 
@@ -20,7 +19,7 @@
 
   <!-- via TCP -->
   <node name="dh_controller" pkg="dh_gripper" type="dh_controller" output="screen">
-    <rosparam ns="gripper" command="load" file="$(arg gripper_path)"/>
+    <rosparam ns="gripper" file="$(arg gripper_config)"/>
     <param name="tcp/host" value="$(arg host)"/>
     <param name="tcp/port" value="$(arg port)"/>
     <param name="data_timeout" value="0.05"/>

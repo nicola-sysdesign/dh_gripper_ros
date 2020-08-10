@@ -1,3 +1,5 @@
+#include <string>
+#include <vector>
 // roscpp
 #include <ros/ros.h>
 #include <ros/console.h>
@@ -12,10 +14,27 @@ int main(int argc, char* argv[])
   // Node
   ros::NodeHandle node("~");
 
+  // Parameters
+  std::string gripper_model;
+  if (!node.getParam("gripper/model", gripper_model))
+  {
+    std::string param_name = node.resolveName("gripper/model");
+    ROS_ERROR("Failed to get '%s'", param_name.c_str());
+    return 1;
+  }
+
+  std::vector<std::string> joints;
+  if (!node.getParam("gripper/joints", joints))
+  {
+    std::string param_name = node.resolveName("gripper/joints");
+    ROS_ERROR("Failed to get '%s'", param_name.c_str());
+    return 1;
+  }
+
   //
   dh::GripperController controller(node, "gripper_command");
 
-  if (!controller.init())
+  if (!controller.init(gripper_model, joints))
   {
     ROS_FATAL("Failed to initialize Gripper Controller!");
     return 1;
