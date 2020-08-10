@@ -36,7 +36,15 @@ bool dh::GripperController::init(const std::string &gripper_model, const std::ve
   j_pos.resize(n_joints, 0.0); j_pos_cmd.resize(n_joints, 0.0);
   j_eff.resize(n_joints, 0.0); j_eff_cmd.resize(n_joints, 0.0);
 
+  joint_state_pub = node.advertise<sensor_msgs::JointState>("joint_states", 10, true);
 
+  ROS_INFO("DH %s Controller initialized successfully.", gripper_model.c_str());
+  return true;
+}
+
+
+bool dh::GripperController::start()
+{
   if (node.getParam("usb/port", usb_port))
   {
     connect_mode = 1;
@@ -67,15 +75,6 @@ bool dh::GripperController::init(const std::string &gripper_model, const std::ve
     return false;
   }
 
-  joint_state_pub = node.advertise<sensor_msgs::JointState>("joint_states", 10);
-
-  ROS_INFO("DH %s initialized successfully.", gripper_model.c_str());
-  return true;
-}
-
-
-bool dh::GripperController::start()
-{
   //
   int motor_id = 1;
 
@@ -87,7 +86,7 @@ bool dh::GripperController::start()
 
   for (int i = 0; i < joints.size(); i++)
   {
-    j_pos[i] = -0.03 + 0.03 * (pos / 100.0);
+    j_pos[i] = -0.03 * (pos / 100.0);
     j_eff[i] = eff;
   }
 
@@ -100,7 +99,15 @@ bool dh::GripperController::start()
 
   //
   gripper_command_asrv.start();
+
+  ROS_INFO("DH %s Controller started successfully.", gripper_model.c_str());
   return true;
+}
+
+void dh::GripperController::shutdown()
+{
+  gripper_command_asrv.shutdown();
+  close_device();
 }
 
 
@@ -219,7 +226,7 @@ void dh::GripperController::execute_cb(const control_msgs::GripperCommandGoalCon
   // joint state
   for (int i = 0; i < joints.size(); i++)
   {
-    j_pos[i] = -0.03 + 0.03 * (pos / 100.0);
+    j_pos[i] = -0.03 * (pos / 100.0);
     j_eff[i] = eff;
   }
 
@@ -333,7 +340,6 @@ bool dh::GripperController::init_device()
 
 void dh::GripperController::close_device()
 {
-  // stop communication
   if (connect_mode == 1)
   {
     serial.close();

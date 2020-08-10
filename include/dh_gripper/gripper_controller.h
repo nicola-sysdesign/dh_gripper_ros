@@ -85,16 +85,16 @@ private:
 
 public:
 
-  GripperController(const ros::NodeHandle &node = ros::NodeHandle(), const std::string &action_ns = "gripper_command");
+  GripperController(const ros::NodeHandle &node = ros::NodeHandle(), const std::string &action_ns = "gripper_cmd");
 
   ~GripperController();
 
 
   bool init(const std::string &gripper_model, const std::vector<std::string> &joints);
 
-
   bool start();
 
+  void shutdown();
 
   /**
    * @brief service callback function

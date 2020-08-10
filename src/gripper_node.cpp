@@ -32,7 +32,7 @@ int main(int argc, char* argv[])
   }
 
   //
-  dh::GripperController controller(node, "gripper_command");
+  dh::GripperController controller(node, "gripper_cmd");
 
   if (!controller.init(gripper_model, joints))
   {
@@ -49,5 +49,6 @@ int main(int argc, char* argv[])
   ros::MultiThreadedSpinner spinner(1);
   spinner.spin();
 
+  controller.shutdown();
   return 0;
 }
