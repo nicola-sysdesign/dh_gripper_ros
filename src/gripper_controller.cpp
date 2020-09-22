@@ -148,8 +148,6 @@ void dh::GripperController::timer_cb(const ros::TimerEvent &ev)
 
 void dh::GripperController::execute_cb(const control_msgs::GripperCommandGoalConstPtr &goal)
 {
-  // ROS_INFO("DH %s: Command Execution", gripper_model.c_str());
-
   int motor_id = 1;
 
   int pos; double pos_cmd;
@@ -532,6 +530,106 @@ bool dh::GripperController::getGrippingForce(int &gripping_force)
 }
 
 
+bool dh::GripperController::setObjectDroppedFeedback(bool enabled)
+{
+  auto ret = false;
+  auto iter = 0;
+  do
+  {
+    driver.setObjectDroppedFeedback(enabled);
+
+    if (!write_data(driver.getStream()))
+    {
+      ROS_WARN("setObjectDroppedFeedback write data error");
+      continue;
+    }
+
+    if (!ensure_set_command(driver.getStream()))
+    {
+      ROS_WARN("setObjectDroppedFeedback wait timeout");
+      continue;
+    }
+
+    ret = true;
+
+  } while (ret == false && iter++ < 3);
+
+  return ret;
+}
+
+
+bool dh::GripperController::read_data(uint8_t wait_count)
+{
+  auto ret = false;
+  auto iter = 0;
+  auto getframe = false;
+  uint8_t buf[14];
+
+  do
+  {
+    data_timeout.sleep();
+
+    if (connect_mode == 1)
+    {
+      uint8_t count = serial.available() / 14;
+      uint8_t remain = serial.available() % 14;
+      if (count >= 1 && remain == 0)
+      {
+        for (; count > 1; count--)
+        {
+          serial.read(buf, 14);
+        }
+        serial.read(buf, 14);
+        readtempdata.DatafromStream(buf, 14);
+        getframe = true;
+      }
+    }
+    else if (connect_mode == 2)
+    {
+      std::vector<uint8_t> temp;
+      unsigned char tempbuf[140] = { 0 };
+
+      int get_num = recv(sockfd, tempbuf, 140, MSG_DONTWAIT);
+      for (int i = 0; i < get_num; i++)
+      {
+        temp.push_back(tempbuf[i]);
+      }
+
+      uint8_t count = temp.size() / 14;
+      uint8_t remain = temp.size() % 14;
+      if (count >= 1 && remain == 0)
+      {
+        for (int i = 0; i < (count - 1) * 14; i++)
+        {
+          temp.erase(temp.begin());
+        }
+        for (int i = 0; i < 14; i++)
+        {
+          buf[i] = temp.at(0);
+          temp.erase(temp.begin());
+        }
+        readtempdata.DatafromStream(buf, 14);
+        getframe = true;
+      }
+    }
+
+    if (getframe)
+    {
+      if (check_data(buf))
+      {
+        ROS_DEBUG("Read: %X %X %X %X %X %X %X %X %X %X %X %X %X %X", buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8], buf[9], buf[10], buf[11], buf[12], buf[13]);
+        ret = true;
+      }
+    }
+  } while (ret == false && iter++ < wait_count);
+
+  // if (iter >= waitconunt)
+  //   ROS_ERROR_STREAM("Read Overtime you can increase 'WaitDataTime' in launch file ");
+
+  return ret;
+}
+
+
 bool dh::GripperController::write_data(std::vector<uint8_t> data)
 {
   auto ret = false;
@@ -551,6 +649,24 @@ bool dh::GripperController::write_data(std::vector<uint8_t> data)
     }
   }
   return ret;
+}
+
+
+bool dh::GripperController::check_data(uint8_t *data)
+{
+  if (0xFF == data[0] &&
+      0xFE == data[1] &&
+      0xFD == data[2] &&
+      0xFC == data[3] &&
+      0xFB == data[13])
+  {
+    return true;
+  }
+  else
+  {
+    ROS_WARN("get data structure false");
+    return false;
+  }
 }
 
 
@@ -647,96 +763,6 @@ bool dh::GripperController::ensure_run_end(std::vector<uint8_t> data)
       }
     }
   } while (ret == false && iter++ < 1);
-
-  return ret;
-}
-
-
-bool dh::GripperController::check_data(uint8_t *data)
-{
-  if (0xFF == data[0] &&
-      0xFE == data[1] &&
-      0xFD == data[2] &&
-      0xFC == data[3] &&
-      0xFB == data[13])
-  {
-    return true;
-  }
-  else
-  {
-    ROS_WARN("get data structure false");
-    return false;
-  }
-}
-
-
-bool dh::GripperController::read_data(uint8_t wait_count)
-{
-  auto ret = false;
-  auto iter = 0;
-  auto getframe = false;
-  uint8_t buf[14];
-
-  do
-  {
-    data_timeout.sleep();
-
-    if (connect_mode == 1)
-    {
-      uint8_t count = serial.available() / 14;
-      uint8_t remain = serial.available() % 14;
-      if (count >= 1 && remain == 0)
-      {
-        for (; count > 1; count--)
-        {
-          serial.read(buf, 14);
-        }
-        serial.read(buf, 14);
-        readtempdata.DatafromStream(buf, 14);
-        getframe = true;
-      }
-    }
-    else if (connect_mode == 2)
-    {
-      std::vector<uint8_t> temp;
-      unsigned char tempbuf[140] = { 0 };
-
-      int get_num = recv(sockfd, tempbuf, 140, MSG_DONTWAIT);
-      for (int i = 0; i < get_num; i++)
-      {
-        temp.push_back(tempbuf[i]);
-      }
-
-      uint8_t count = temp.size() / 14;
-      uint8_t remain = temp.size() % 14;
-      if (count >= 1 && remain == 0)
-      {
-        for (int i = 0; i < (count - 1) * 14; i++)
-        {
-          temp.erase(temp.begin());
-        }
-        for (int i = 0; i < 14; i++)
-        {
-          buf[i] = temp.at(0);
-          temp.erase(temp.begin());
-        }
-        readtempdata.DatafromStream(buf, 14);
-        getframe = true;
-      }
-    }
-
-    if (getframe)
-    {
-      if (check_data(buf))
-      {
-        ROS_DEBUG("Read: %X %X %X %X %X %X %X %X %X %X %X %X %X %X", buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8], buf[9], buf[10], buf[11], buf[12], buf[13]);
-        ret = true;
-      }
-    }
-  } while (ret == false && iter++ < wait_count);
-
-  // if (iter >= waitconunt)
-  //   ROS_ERROR_STREAM("Read Overtime you can increase 'WaitDataTime' in launch file ");
 
   return ret;
 }

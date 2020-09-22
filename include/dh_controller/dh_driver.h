@@ -94,7 +94,16 @@ public:
    * @param MotorID
    */
   void getFeedback(int motor_id);
+
+  /**
+   * @brief Object dropped feedback
+   *
+   * @param MotorID
+   */
+  void setObjectDroppedFeedback(bool enable);
+
 };
 
-} // namespace
+}  // namespace
+
 #endif

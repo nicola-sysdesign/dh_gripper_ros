@@ -24,7 +24,8 @@ enum RegisterType
   R_Posistion_2 = 0x07,
   R_Initialization = 0x08,
   R_Feedback = 0x0f,
-  R_Slowmode = 0x11
+  R_Slowmode = 0x11,
+  R_ObjectDropped = 0x15
 };
 
 enum SlowModeType

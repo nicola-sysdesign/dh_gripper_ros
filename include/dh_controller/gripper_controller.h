@@ -175,6 +175,15 @@ public:
    */
   bool getGrippingForce(int &gripping_force);
 
+
+  /**
+   * @brief Set Object Dropped Feedback
+   *
+   * @param enabled
+   * @return true on success; otherwise returns false.
+   */
+  bool setObjectDroppedFeedback(bool enabled);
+
   /**
    * @brief Write data to serial
    *

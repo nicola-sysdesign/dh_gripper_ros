@@ -99,3 +99,18 @@ void dh::DH_Driver::getFeedback(int motor_id)
 {
   SetOperation(DH_Robotics::R_Feedback, 0, DH_Robotics::Read, motor_id);
 }
+
+
+void dh::DH_Driver::setObjectDroppedFeedback(bool enable)
+{
+  if (enable)
+  {
+    // FF FE FD FC 01 15 01 01 00 01 00 00 00 FB
+    SetOperation(DH_Robotics::R_ObjectDropped, 1, DH_Robotics::Write, 0x01);
+  }
+  else
+  {
+    // FF FE FD FC 01 15 01 01 00 00 00 00 00 FB
+    SetOperation(DH_Robotics::R_ObjectDropped, 0, DH_Robotics::Write, 0x01);
+  }
+}

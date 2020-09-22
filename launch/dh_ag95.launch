@@ -1,14 +1,12 @@
 <launch>
-  <arg name="debug" default="false"/>
-  <env if="$(arg debug)"
-    name="ROSCONSOLE_CONFIG_FILE" value="$(find dh_controller)/rosconsole.conf"/>
-
   <arg name="gripper_config" default="$(find dh_controller)/config/ag95.yaml"/>
-
   <arg name="usb" default="/dev/DH_hand"/>
-
   <arg name="host" default="192.168.1.29"/>
   <arg name="port" default="8888"/>
+  <arg name="debug" default="false"/>
+
+  <env if="$(arg debug)"
+    name="ROSCONSOLE_CONFIG_FILE" value="$(find dh_controller)/rosconsole.conf"/>
 
   <!-- via USB -->
   <!-- <node name="gripper_controller" pkg="dh_gripper" type="dh_controller" output="screen">
