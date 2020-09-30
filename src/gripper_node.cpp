@@ -49,6 +49,11 @@ int main(int argc, char* argv[])
     return 1;
   }
 
+  if (controller.setObjectDroppedFeedback(false))
+  {
+    ROS_INFO("Disabled 'Object Dropped Feedback' function.");
+  }
+
   ros::MultiThreadedSpinner spinner(1);
   spinner.spin();
 
