@@ -10,11 +10,13 @@ add_compile_options(-std=c++11)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
+  std_srvs
   actionlib
   actionlib_msgs
   serial
   sensor_msgs
   control_msgs
+  industrial_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -55,11 +57,13 @@ catkin_package(
   CATKIN_DEPENDS
     roscpp
     std_msgs
+    std_srvs
     actionlib
     actionlib_msgs
     serial
     sensor_msgs
     control_msgs
+    industrial_msgs
   DEPENDS Boost
 )
 

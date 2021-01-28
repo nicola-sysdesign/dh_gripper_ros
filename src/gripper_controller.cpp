@@ -45,11 +45,18 @@ bool dh::GripperController::init(const std::string &gripper_model, const std::ve
 
 bool dh::GripperController::start()
 {
+  status.connected = false;
+  status.initialized = false;
+
   if (node.getParam("usb/port", usb_port))
   {
     connect_mode = 1;
 
-    if (!usb_connect(usb_port))
+    if (usb_connect(usb_port))
+    {
+      status.connected = true;
+    }
+    else
     {
       ROS_FATAL("Failed to connect to %s", usb_port.c_str());
       return false;
@@ -62,14 +69,22 @@ bool dh::GripperController::start()
     auto host = node.param<std::string>("tcp/host", "192.168.1.29");
     auto port = node.param<int>("tcp/port", 8888);
 
-    if (!tcp_connect(host, port))
+    if (tcp_connect(host, port))
+    {
+      status.connected = true;
+    }
+    else
     {
       ROS_FATAL("Failed to connect to %s:%d", host.c_str(), port);
       return false;
     }
   }
 
-  if (!init_device())
+  if (init_device())
+  {
+    status.initialized = true;
+  }
+  else
   {
     ROS_FATAL("Failed to initialize DH %s", gripper_model.c_str());
     return false;
@@ -101,6 +116,23 @@ bool dh::GripperController::start()
   gripper_command_asrv.start();
 
   ROS_INFO("DH %s Controller started successfully.", gripper_model.c_str());
+  return true;
+}
+
+
+bool dh::GripperController::start(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &res)
+{
+  if (start())
+  {
+    res.success = true;
+    res.message = "Gripper started successfully.";
+  }
+  else
+  {
+    res.success = false;
+    res.message = "Failed to start the gripper.";
+  }
+
   return true;
 }
 
@@ -347,6 +379,20 @@ void dh::GripperController::close_device()
   {
     close(sockfd);
   }
+
+  status.connected = false;
+  status.initialized = false;
+}
+
+
+bool dh::GripperController::close_device(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &res)
+{
+  close_device();
+
+  res.success = true;
+  res.message = "Gripper connection closed";
+
+  return true;
 }
 
 

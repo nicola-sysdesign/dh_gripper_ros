@@ -14,6 +14,8 @@
 #include <ros/console.h>
 // actionlib
 #include <actionlib/server/simple_action_server.h>
+// std_srvs
+#include <std_srvs/Trigger.h>
 // sensor_msgs
 #include <sensor_msgs/JointState.h>
 // control_msgs
@@ -66,7 +68,7 @@ private:
   //
   ros::Timer timer;
 
-  // Topics
+  // Published Topics
   ros::Publisher joint_state_pub;
 
   // Action Server
@@ -82,6 +84,12 @@ private:
 
 public:
 
+  struct
+  {
+    bool connected = false;
+    bool initialized = false;
+  } status;
+
   GripperController(const ros::NodeHandle &node = ros::NodeHandle(), const std::string &action_ns = "gripper_cmd");
 
   ~GripperController();
@@ -90,6 +98,7 @@ public:
   bool init(const std::string &gripper_model, const std::vector<std::string> &joints);
 
   bool start();
+  bool start(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &res);
 
   void shutdown();
 
@@ -131,6 +140,7 @@ public:
    * @return true on success; otherwise returns false.
    */
   void close_device();
+  bool close_device(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &res);
 
   /**
    * @brief Move individual joint

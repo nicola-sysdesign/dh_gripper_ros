@@ -8,16 +8,17 @@
 
   <maintainer email="jiesun@todo.todo">jiesun</maintainer>
 
-
   <buildtool_depend>catkin</buildtool_depend>
   <!-- Catkin Dependencies -->
   <depend>roscpp</depend>
   <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
   <depend>actionlib</depend>
   <depend>actionlib_msgs</depend>
   <depend>serial</depend>
   <depend>sensor_msgs</depend>
   <depend>control_msgs</depend>
+  <depend>industrial_msgs</depend>
   <depend>message_generation</depend>
   <!-- System Dependencies -->
   <depend>boost</depend>
